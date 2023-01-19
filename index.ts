@@ -2,6 +2,7 @@ const core = require('@actions/core');
 const github = require('@actions/github');
 const fs = require('fs');
 const glob = require('glob');
+const yaml = require('yaml');
 
 import {
   PackageCache,
@@ -13,12 +14,12 @@ import {
 } from '@github/dependency-submission-toolkit'
 
 async function run() {
-  let manifests = getManifestsFromSpdxFiles(searchFiles());
+  let manifests = getManifestsFromEnvironmentFiles(searchFiles());
   
   let snapshot = new Snapshot({
-      name: "spdx-to-dependency-graph-action",
+      name: "conda-dependency-submission-action",
       version: "0.0.1",
-      url: "https://github.com/jhutchings1/spdx-to-dependency-graph-action",
+      url: "https://github.com/jhutchings1/conda-dependency-submission-action",
   }, 
   github.context,
   {
@@ -33,9 +34,13 @@ async function run() {
   submitSnapshot(snapshot);
 }
 
-function getManifestFromSpdxFile(document, fileName) {
-  core.debug(`getManifestFromSpdxFile processing ${fileName}`);
+function getManifestFromEnvironmentFile(document, fileName) {
+  core.debug(`getManifestFromEnvironmentFile processing ${fileName}`);
 
+  let manifest = new Manifest("Environment", fileName);
+
+
+/** 
   let manifest = new Manifest(document.name, fileName);
 
   core.debug(`Processing ${document.packages?.length} packages`);
@@ -67,38 +72,28 @@ function getManifestFromSpdxFile(document, fileName) {
     }
   });
   return manifest;
+  */
 }
 
-function getManifestsFromSpdxFiles(files) {
+function getManifestsFromEnvironmentFiles(files) {
   core.debug(`Processing ${files.length} files`);
   let manifests = [];
   files?.forEach(file => {
     core.debug(`Processing ${file}`);
-    manifests.push(getManifestFromSpdxFile(JSON.parse(fs.readFileSync(file)), file));
+    manifests.push(getManifestFromEnvironmentFile(yaml.parse(file)));
   });
   return manifests;
 }
 
-function searchFiles() {
-  let filePath = core.getInput('filePath');
-  let filePattern = core.getInput('filePattern');
+function searchFiles(filePath = false, filePattern = false) {
+  if (!filePath) {
+    let filePath = core.getInput('filePath');
+  }
+  if (!filePattern) {
+    let filePattern = core.getInput('filePattern');
+  } 
 
   return glob.sync(`${filePath}/${filePattern}`, {});
-}
-
-// Fixes issues with an escaped version string
-function replaceVersionEscape(purl) {
-  // Some tools are failing to escape the namespace, so we will escape it to work around that
-  purl = purl.replace("/@", "/%40");
-
-  //If there's an "@" in the purl, then we don't need to do anything.
-  if (purl != null && purl != undefined && !purl?.includes("@")) {
-    let index = purl.lastIndexOf("%40");
-    if (index > 0) {
-      purl = purl.substring(0, index) + "@" + purl.substring(index + 3);
-    }
-  }
-  return purl;
 }
 
 run();

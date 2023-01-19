@@ -1,18 +1,18 @@
-name: 'SPDX to dependency graph action'
-description: 'Upload SPDX SBOM files to the dependency graph''s dependency submission API'
+name: 'Conda dependency submission action'
+description: 'Upload information about your Anaconda environment to the GitHub dependency graph'
 inputs:
   token:
     description: "GitHub Personal Access Token (PAT). Defaults to PAT provided by Actions runner."
     required: false
     default: ${{ github.token }}
   filePath:  
-    description: 'The path to the directory containing the SPDX files to upload. Defaults to Actions working directory.'
+    description: 'The path to the directory containing the environment files to upload. Defaults to Actions working directory.'
     required: false
     default: '.'
   filePattern:
-    description: 'The file name pattern for SPDX files to upload'
+    description: 'The file name pattern for environment files to upload'
     required: false
-    default: '*.spdx.json'
+    default: '*environment.yaml'
 runs:
   using: 'node16'
   main: 'dist/index.js'
