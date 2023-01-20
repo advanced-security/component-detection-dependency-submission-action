@@ -8,9 +8,8 @@
     "base-build": "npm ci && tsc",
     "build": "npm run base-build && npm exec -- @vercel/ncc build --source-map lib/src/index.js",
     "prepare": "ncc build index.ts -o dist --source-map --license licenses.txt",
-    "package": "ncc build --source-map --license licenses.txt --out dist",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "all": "npm run lint && npm run prepare && npm run package && npm run test"
+    "all": "npm run lint && npm run prepare && npm run test"
   },
   "repository": {
     "type": "git",
