@@ -13,7 +13,8 @@ import {
 import CondaParser from './condaParser';
 
 async function run() {
-  let manifests = CondaParser.getManifestsFromEnvironmentFiles(CondaParser.searchFiles());
+  let manifests = CondaParser.getManifestsFromEnvironmentFiles(
+    CondaParser.searchFiles(core.getInput('filePath'), core.getInput('filePattern')));
   
   let snapshot = new Snapshot({
       name: "conda-dependency-submission-action",

@@ -23826,54 +23826,9 @@ const glob = __nccwpck_require__(1957);
 const yaml = __nccwpck_require__(4083);
 const fs = __importStar(__nccwpck_require__(7147));
 const dependency_submission_toolkit_1 = __nccwpck_require__(9810);
-/**getManifestFromEnvironmentFile(document, fileName) {
-core.debug(`getManifestFromEnvironmentFile processing ${fileName}`);
-
-let manifest = new Manifest("Environment", fileName);
-
-
-/**
- let manifest = new Manifest(document.name, fileName);
-
-core.debug(`Processing ${document.packages?.length} packages`);
-
-document.packages?.forEach(pkg => {
-    let packageName = pkg.name;
-    let packageVersion = pkg.packageVersion;
-    let referenceLocator = pkg.externalRefs?.find(ref => ref.referenceCategory === "PACKAGE-MANAGER" && ref.referenceType === "purl")?.referenceLocator;
-    let genericPurl = `pkg:generic/${packageName}@${packageVersion}`;
-    // SPDX 2.3 defines a purl field
-    let purl;
-    if (pkg.purl != undefined) {
-    purl = pkg.purl;
-    } else if (referenceLocator != undefined) {
-    purl = referenceLocator;
-    } else {
-    purl = genericPurl;
-    }
-
-    // Working around weird encoding issues from an SBOM generator
-    // Find the last instance of %40 and replace it with @
-    purl = replaceVersionEscape(purl);
-
-    let relationships = document.relationships?.find(rel => rel.relatedSpdxElement == pkg.SPDXID && rel.relationshipType == "DEPENDS_ON" && rel.spdxElementId != "SPDXRef-RootPackage");
-    if (relationships != null && relationships.length > 0) {
-    manifest.addIndirectDependency(new Package(purl));
-    } else {
-    manifest.addDirectDependency(new Package(purl));
-    }
-});
-return manifest;
-}*/
-/***/
 class CondaParser {
     static searchFiles(filePath = "", filePattern = "") {
-        if (filePath == "") {
-            let filePath = core.getInput('filePath');
-        }
-        if (filePattern == "") {
-            let filePattern = core.getInput('filePattern');
-        }
+        core.debug(`Searching for files in ${filePath} with pattern ${filePattern}`);
         return glob.sync(`${filePath}/${filePattern}`, {});
     }
     static getManifestsFromEnvironmentFiles(files) {
@@ -23946,12 +23901,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+const core_1 = __importDefault(__nccwpck_require__(2186));
 const github_1 = __importDefault(__nccwpck_require__(5438));
 const dependency_submission_toolkit_1 = __nccwpck_require__(9810);
 const condaParser_1 = __importDefault(__nccwpck_require__(2120));
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
-        let manifests = condaParser_1.default.getManifestsFromEnvironmentFiles(condaParser_1.default.searchFiles());
+        let manifests = condaParser_1.default.getManifestsFromEnvironmentFiles(condaParser_1.default.searchFiles(core_1.default.getInput('filePath'), core_1.default.getInput('filePattern')));
         let snapshot = new dependency_submission_toolkit_1.Snapshot({
             name: "conda-dependency-submission-action",
             version: "0.0.1",
