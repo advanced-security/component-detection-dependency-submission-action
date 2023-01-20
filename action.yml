@@ -12,7 +12,7 @@ inputs:
   filePattern:
     description: 'The file name pattern for environment files to upload'
     required: false
-    default: '*environment.yaml'
+    default: 'environment.yaml'
 runs:
   using: 'node16'
   main: 'dist/index.js'
