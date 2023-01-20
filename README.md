@@ -1,40 +1,23 @@
-# SPDX to Dependency Graph Action
+# Conda dependency submission action
 
-This repository makes it easy to upload an SPDX SBOM to GitHub's dependency submission API. This lets you quickly receive Dependabot alerts for package manifests which GitHub doesn't directly support like pnpm or Paket by using existing off-the-shelf SBOM generators. 
+This repository scans Conda environment.yaml files and uploads the results to the dependency graph. While GitHub does not support alerting on OS-level dependencies, it will alert on any PyPI dependencies that are defined in the environment.yaml. 
 
 
 ### Example workflow
-This workflow uses the [Microsoft sbom-tool](https://github.com/microsoft/sbom-tool). 
+
 ```yaml
 
-name: SBOM upload
+name: Conda dependency submission
 
-on: 
+on:
   workflow_dispatch:
-  push: 
-    branches: ["main"]
+  push:
 
 jobs:
-  SBOM-upload:
-
+  dependency-submission:
     runs-on: ubuntu-latest
-    permissions: 
-      id-token: write
-      contents: write
-      
     steps:
-    - uses: actions/checkout@v3
-    - name: Generate SBOM
-      run: | 
-        curl -Lo $RUNNER_TEMP/sbom-tool https://github.com/microsoft/sbom-tool/releases/latest/download/sbom-tool-linux-x64
-        chmod +x $RUNNER_TEMP/sbom-tool
-        $RUNNER_TEMP/sbom-tool generate -b . -bc . -pn ${{ github.repository }} -pv 1.0.0 -ps OwnerName -nsb https://sbom.mycompany.com -V Verbose
-    - uses: actions/upload-artifact@v3
-      with:
-        name: sbom
-        path: _manifest/spdx_2.2
-    - name: SBOM upload 
-      uses: jhutchings1/spdx-to-dependency-graph-action@v0.0.1
-      with:
-        filePath: "_manifest/spdx_2.2/"
+      - uses: actions/checkout@v3
+      - name: Conda dependency scanning
+        uses: jhutchings1/conda-dependency-submission-action@v0.0.1
 ```        
