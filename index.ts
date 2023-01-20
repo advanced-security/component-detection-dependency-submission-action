@@ -1,8 +1,5 @@
-const core = require('@actions/core');
-const github = require('@actions/github');
-const fs = require('fs');
-const glob = require('glob');
-const yaml = require('yaml');
+import core from '@actions/core';
+import github from '@actions/github';
 
 import {
   PackageCache,
@@ -11,7 +8,7 @@ import {
   Snapshot,
   Manifest,
   submitSnapshot
-} from '@github/dependency-submission-toolkit'
+} from '@github/dependency-submission-toolkit';
 
 import CondaParser from './condaParser';
 

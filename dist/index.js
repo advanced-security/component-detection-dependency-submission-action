@@ -23923,11 +23923,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const core = __nccwpck_require__(2186);
-const github = __nccwpck_require__(5438);
-const fs = __nccwpck_require__(7147);
-const glob = __nccwpck_require__(1957);
-const yaml = __nccwpck_require__(4083);
+const github_1 = __importDefault(__nccwpck_require__(5438));
 const dependency_submission_toolkit_1 = __nccwpck_require__(9810);
 const condaParser_1 = __importDefault(__nccwpck_require__(2120));
 function run() {
@@ -23937,9 +23933,9 @@ function run() {
             name: "conda-dependency-submission-action",
             version: "0.0.1",
             url: "https://github.com/jhutchings1/conda-dependency-submission-action",
-        }, github.context, {
-            correlator: `${github.context.job}`,
-            id: github.context.runId.toString()
+        }, github_1.default.context, {
+            correlator: `${github_1.default.context.job}`,
+            id: github_1.default.context.runId.toString()
         });
         manifests === null || manifests === void 0 ? void 0 : manifests.forEach(manifest => {
             snapshot.addManifest(manifest);
