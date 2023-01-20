@@ -29,6 +29,8 @@
     "@actions/github": "^5.1.1",
     "@github/dependency-submission-toolkit": "^1.2.7",
     "fs": "^0.0.1-security",
+    "node-fetch": "^3.3.0",
+    "tar": "^6.1.13",
     "yaml": "^2.2.1"
   },
   "devDependencies": {
