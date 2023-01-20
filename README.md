@@ -23,5 +23,5 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Conda dependency scanning
-        uses: jhutchings1/conda-dependency-submission-action@v0.0.1
+        uses: jhutchings1/conda-dependency-submission-action@v0.0.2
 ```        
