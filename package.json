@@ -2,12 +2,10 @@
   "name": "Conda-dependency-submission-action",
   "version": "1.0.0",
   "description": "Conda dependency submission action",
-  "main": "index.js",
+  "main": "index.ts",
   "scripts": {
     "lint": "eslint .",
-    "base-build": "npm ci && tsc",
-    "build": "npm run base-build && npm exec -- @vercel/ncc build --source-map lib/src/index.js",
-    "prepare": "ncc build index.js -o dist --source-map --license licenses.txt",
+    "prepare": "ncc build index.ts -o dist --source-map --license licenses.txt",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "all": "npm run lint && npm run prepare && npm run test"
   },
@@ -34,6 +32,7 @@
     "yaml": "^2.2.1"
   },
   "devDependencies": {
+    "@types/glob": "^8.0.0",
     "@types/jest": "^29.2.6",
     "@vercel/ncc": "^0.36.0",
     "eslint": "^8.29.0",
