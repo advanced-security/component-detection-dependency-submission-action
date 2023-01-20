@@ -13,6 +13,10 @@ on:
   workflow_dispatch:
   push:
 
+permissions: 
+  id-token: write
+  contents: write
+
 jobs:
   dependency-submission:
     runs-on: ubuntu-latest
