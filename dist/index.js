@@ -23820,10 +23820,9 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const core = __nccwpck_require__(2186);
-const github = __nccwpck_require__(5438);
-const glob = __nccwpck_require__(1957);
-const yaml = __nccwpck_require__(4083);
+const core = __importStar(__nccwpck_require__(2186));
+const yaml = __importStar(__nccwpck_require__(4083));
+const glob = __importStar(__nccwpck_require__(1957));
 const fs = __importStar(__nccwpck_require__(7147));
 const dependency_submission_toolkit_1 = __nccwpck_require__(9810);
 class CondaParser {

@@ -1,8 +1,6 @@
-const core = require('@actions/core');
-const github = require('@actions/github');
-const glob = require('glob');
-const yaml = require('yaml');
-
+import * as core from '@actions/core';
+import * as yaml from 'yaml';
+import * as glob from 'glob';
 import * as fs from 'fs';
 
 import {
@@ -13,7 +11,6 @@ import {
   Manifest,
   submitSnapshot
 } from '@github/dependency-submission-toolkit'
-import { YAMLMap } from 'yaml';
 
 export default class CondaParser {
 
