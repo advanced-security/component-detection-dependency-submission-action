@@ -13,7 +13,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - uses: ./
-      with:
-        filePath: "test"
+    - run: node --experimental-vm-modules node_modules/jest/bin/jest.js
         
