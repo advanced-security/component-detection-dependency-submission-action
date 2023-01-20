@@ -1,8 +1,9 @@
 const core = require('@actions/core');
 const github = require('@actions/github');
-const fs = require('fs');
 const glob = require('glob');
 const yaml = require('yaml');
+
+import * as fs from 'fs';
 
 import {
   PackageCache,
