@@ -9,6 +9,7 @@ dotenv.config();
 import * as exec from '@actions/exec';
 
 export const componentDetectionPath = './component-detection';
+const outputPath = './output.json';
 // Get the latest release from the component-detection repo, download the tarball, and extract it
 export async function downloadLatestRelease() {
   try {
@@ -32,7 +33,7 @@ export async function downloadLatestRelease() {
 // Run the component-detection CLI on the path specified
 export async function runComponentDetection(path: string) {
   try {
-    await exec.exec(`${componentDetectionPath} scan --SourceDirectory ${path}`);
+    await exec.exec(`${componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${outputPath}`);
   } catch (error: any) {
     core.error(error);
   }
