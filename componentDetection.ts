@@ -32,7 +32,7 @@ export async function downloadLatestRelease() {
 // Run the component-detection CLI on the path specified
 export async function runComponentDetection(path: string) {
   try {
-    await exec.exec(`${componentDetectionPath} ${path}`);
+    await exec.exec(`${componentDetectionPath} scan --SourceDirectory ${path}`);
   } catch (error: any) {
     core.error(error);
   }
