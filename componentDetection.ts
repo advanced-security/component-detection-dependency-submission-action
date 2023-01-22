@@ -58,7 +58,6 @@ export default class ComponentDetection {
   private static getComponentDetectionParameters(): string {
     var parameters = "";
     parameters += (core.getInput('directoryExclusionList')) ? ` --DirectoryExclusionList ${core.getInput('directoryExclusionList')}` : "";
-    parameters += (core.getInput('ignoreDirectories')) ? ` --IgnoreDirectories ${core.getInput('ignoreDirectories')}` : "";
     parameters += (core.getInput('detectorArgs')) ? ` --DetectorArgs ${core.getInput('detectorArgs')}` : "";
     parameters += (core.getInput('detectorsFilter')) ? ` --DetectorsFilter ${core.getInput('detectorsFilter')}` : "";
     parameters += (core.getInput('dockerImagesToScan')) ? ` --DockerImagesToScan ${core.getInput('dockerImagesToScan')}` : "";
