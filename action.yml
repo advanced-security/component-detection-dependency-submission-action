@@ -1,5 +1,5 @@
-name: 'Conda dependency submission action'
-description: 'Upload information about your Anaconda environment to the GitHub dependency graph'
+name: 'Component detection action'
+description: 'Upload information about your dependencies to the GitHub dependency graph. Uses Microsoft''s component detection CLI'
 inputs:
   token:
     description: "GitHub Personal Access Token (PAT). Defaults to PAT provided by Actions runner."
