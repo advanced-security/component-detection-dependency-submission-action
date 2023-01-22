@@ -23772,12 +23772,21 @@ class ComponentDetection {
         return __awaiter(this, void 0, void 0, function* () {
             core.info("Running component-detection");
             try {
-                yield exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath}`);
+                yield exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`);
             }
             catch (error) {
                 core.error(error);
             }
         });
+    }
+    static getComponentDetectionParameters() {
+        var parameters = "";
+        parameters += (core.getInput('directoryExclusionList')) ? ` --DirectoryExclusionList ${core.getInput('directoryExclusionList')}` : "";
+        parameters += (core.getInput('ignoreDirectories')) ? ` --IgnoreDirectories ${core.getInput('ignoreDirectories')}` : "";
+        parameters += (core.getInput('detectorArgs')) ? ` --DetectorArgs ${core.getInput('detectorArgs')}` : "";
+        parameters += (core.getInput('detectorsFilter')) ? ` --DetectorsFilter ${core.getInput('detectorsFilter')}` : "";
+        parameters += (core.getInput('dockerImagesToScan')) ? ` --DockerImagesToScan ${core.getInput('dockerImagesToScan')}` : "";
+        return parameters;
     }
     static getManifestsFromResults() {
         return __awaiter(this, void 0, void 0, function* () {

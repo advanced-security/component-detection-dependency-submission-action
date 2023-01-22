@@ -5,6 +5,7 @@ export default class ComponentDetection {
     static scanAndGetManifests(path: string): Promise<Manifest[] | undefined>;
     private static downloadLatestRelease;
     private static runComponentDetection;
+    private static getComponentDetectionParameters;
     private static getManifestsFromResults;
     private static getDependencyScope;
     private static makePackageUrl;

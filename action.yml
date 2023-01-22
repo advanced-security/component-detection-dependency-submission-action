@@ -9,6 +9,21 @@ inputs:
     description: 'The path to the directory containing the environment files to upload. Defaults to Actions working directory.'
     required: false
     default: '.'
+  directoryExclusionList:
+    description: 'Filters out specific directories following a minimatch pattern.'
+    required: false
+  ignoreDirectories:
+    description: 'Filters out specific directories, providing individual directory paths separated by semicolon. Obsolete in favor of DirectoryExclusionList's glob syntax.'
+    required: false
+  detectorArgs:
+    description: 'Comma separated list of properties that can affect the detectors execution, like EnableIfDefaultOff that allows a specific detector that is in beta to run, the format for this property is DetectorId=EnableIfDefaultOff, for example Pip=EnableIfDefaultOff.'
+    required: false
+  dockerImagesToScan:
+    description: 'Comma separated list of docker image names or hashes to execute container scanning on, ex: ubuntu:16.04,56bab49eef2ef07505f6a1b0d5bd3a601dfc3c76ad4460f24c91d6fa298369ab'
+    required: false
+  detectorsFilter: 
+    description: 'A comma separated list with the identifiers of the specific detectors to be used. This is meant to be used for testing purposes only.'
+    required: false
 runs:
   using: 'node16'
   main: 'dist/index.js'
