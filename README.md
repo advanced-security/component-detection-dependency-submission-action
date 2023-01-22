@@ -21,6 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Conda dependency scanning
+      - name: Component detection 
         uses: jhutchings1/component-detection-action@v0.0.1
 ```        
