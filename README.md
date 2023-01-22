@@ -28,7 +28,7 @@ jobs:
 ### Configuration options
 
 | Parameter | Description | Example | 
-| --- | --- | 
+| --- | --- | --- | 
 filePath | The path to the directory containing the environment files to upload. Defaults to Actions working directory. | `'.'`
 directoryExclusionList | Filters out specific directories following a minimatch pattern. | `test`
 detectorArgs | Comma separated list of properties that can affect the detectors execution, like EnableIfDefaultOff that allows a specific detector that is in beta to run, the format for this property is DetectorId=EnableIfDefaultOff, for example Pip=EnableIfDefaultOff. | `Pip=EnableIfDefaultOff`
