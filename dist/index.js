@@ -23811,7 +23811,7 @@ class ComponentDetection {
             packages.forEach((pkg) => __awaiter(this, void 0, void 0, function* () {
                 pkg.locationsFoundAt.forEach((location) => __awaiter(this, void 0, void 0, function* () {
                     var _a, _b;
-                    if (!manifests[location]) {
+                    if (!manifests.find((manifest) => manifest.name == location)) {
                         const manifest = new dependency_submission_toolkit_1.Manifest(location, location);
                         manifests.push(manifest);
                     }
