@@ -23937,8 +23937,9 @@ function run() {
             correlator: `${github.context.job}`,
             id: github.context.runId.toString()
         });
-        core.debug(`Manifests: ${manifests}`);
+        core.debug(`Manifests: ${manifests === null || manifests === void 0 ? void 0 : manifests.length}`);
         manifests === null || manifests === void 0 ? void 0 : manifests.forEach(manifest => {
+            core.debug(`Manifest: ${JSON.stringify(manifest)}`);
             snapshot.addManifest(manifest);
         });
         (0, dependency_submission_toolkit_1.submitSnapshot)(snapshot);
