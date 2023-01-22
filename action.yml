@@ -9,10 +9,6 @@ inputs:
     description: 'The path to the directory containing the environment files to upload. Defaults to Actions working directory.'
     required: false
     default: '.'
-  filePattern:
-    description: 'The file name pattern for environment files to upload'
-    required: false
-    default: 'environment.yaml'
 runs:
   using: 'node16'
   main: 'dist/index.js'

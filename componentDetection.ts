@@ -29,12 +29,14 @@ export default class ComponentDetection {
   // Get the latest release from the component-detection repo, download the tarball, and extract it
   private static async downloadLatestRelease() {
     try {
+      core.debug("Downloading latest release");
       const downloadURL = await this.getLatestReleaseURL();
       const blob = await (await fetch(new URL(downloadURL))).blob();
       const arrayBuffer = await blob.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
 
       // Write the blob to a file
+      core.debug("Writing binary to file");
       await fs.writeFile(this.componentDetectionPath, buffer, {mode: 0o777, flag: 'w'}, 
       (err: any) => {
         if (err) {  
@@ -48,6 +50,7 @@ export default class ComponentDetection {
 
   // Run the component-detection CLI on the path specified
   private static async runComponentDetection(path: string) {
+    core.info("Running component-detection");
     try {
       await exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath}`);
     } catch (error: any) {
@@ -56,7 +59,7 @@ export default class ComponentDetection {
   }
 
   private static async getManifestsFromResults(): Promise<Manifest[]| undefined> {
-    
+    core.info("Getting manifests from results");
     try {
       // Parse the result file and add the packages to the package cache
       const packageCache = new PackageCache();
@@ -85,6 +88,7 @@ export default class ComponentDetection {
           }
         });
       });
+      core.debug(JSON.stringify(packages));
 
       // Create manifests
       const manifests: Array<Manifest> = [];

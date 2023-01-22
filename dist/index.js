@@ -23753,11 +23753,13 @@ class ComponentDetection {
     static downloadLatestRelease() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
+                core.debug("Downloading latest release");
                 const downloadURL = yield this.getLatestReleaseURL();
                 const blob = yield (yield (0, cross_fetch_1.default)(new URL(downloadURL))).blob();
                 const arrayBuffer = yield blob.arrayBuffer();
                 const buffer = Buffer.from(arrayBuffer);
                 // Write the blob to a file
+                core.debug("Writing binary to file");
                 yield fs_1.default.writeFile(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' }, (err) => {
                     if (err) {
                         core.error(err);
@@ -23772,6 +23774,7 @@ class ComponentDetection {
     // Run the component-detection CLI on the path specified
     static runComponentDetection(path) {
         return __awaiter(this, void 0, void 0, function* () {
+            core.info("Running component-detection");
             try {
                 yield exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath}`);
             }
@@ -23782,6 +23785,7 @@ class ComponentDetection {
     }
     static getManifestsFromResults() {
         return __awaiter(this, void 0, void 0, function* () {
+            core.info("Getting manifests from results");
             try {
                 // Parse the result file and add the packages to the package cache
                 const packageCache = new dependency_submission_toolkit_1.PackageCache();
@@ -23805,6 +23809,7 @@ class ComponentDetection {
                         }
                     }));
                 }));
+                core.debug(JSON.stringify(packages));
                 // Create manifests
                 const manifests = [];
                 // Check the locationsFoundAt for every package and add each as a manifest
