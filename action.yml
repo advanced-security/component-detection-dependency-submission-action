@@ -13,7 +13,7 @@ inputs:
     description: 'Filters out specific directories following a minimatch pattern.'
     required: false
   ignoreDirectories:
-    description: 'Filters out specific directories, providing individual directory paths separated by semicolon. Obsolete in favor of DirectoryExclusionList's glob syntax.'
+    description: 'Filters out specific directories, providing individual directory paths separated by semicolon. Obsolete in favor of DirectoryExclusionList''s glob syntax.'
     required: false
   detectorArgs:
     description: 'Comma separated list of properties that can affect the detectors execution, like EnableIfDefaultOff that allows a specific detector that is in beta to run, the format for this property is DetectorId=EnableIfDefaultOff, for example Pip=EnableIfDefaultOff.'
