@@ -13,7 +13,7 @@ import {
 import ComponentDetection from './componentDetection';
 
 async function run() {
-  let manifests = await ComponentDetection.scanAndGetManifests(core.getInput('path'));
+  let manifests = await ComponentDetection.scanAndGetManifests(core.getInput('filePath'));
   
   let snapshot = new Snapshot({
       name: "Component Detection",
