@@ -16,6 +16,7 @@ import dotenv from 'dotenv'
 import { Context } from '@actions/github/lib/context'
 import { unmockedModulePathPatterns } from './jest.config'
 dotenv.config();
+
 export default class ComponentDetection {
   protected static componentDetectionPath = './component-detection';
   protected static outputPath = './output.json';
@@ -111,9 +112,9 @@ export default class ComponentDetection {
   private static makePackageUrl(packageUrlJson: any): string {
     var packageUrl = `${packageUrlJson.Scheme}:${packageUrlJson.Type}/`;
     if (packageUrlJson.Namespace) {
-      packageUrl += `${packageUrlJson.Namespace.replace("@", "%40")}/`;
+      packageUrl += `${packageUrlJson.Namespace.replaceAll("@", "%40")}/`;
     }
-    packageUrl += `${packageUrlJson.Name.replace("@", "%40")}`;
+    packageUrl += `${packageUrlJson.Name.replaceAll("@", "%40")}`;
     if (packageUrlJson.Version) {
       packageUrl += `@${packageUrlJson.Version}`;
     }

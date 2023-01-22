@@ -23832,9 +23832,9 @@ class ComponentDetection {
     static makePackageUrl(packageUrlJson) {
         var packageUrl = `${packageUrlJson.Scheme}:${packageUrlJson.Type}/`;
         if (packageUrlJson.Namespace) {
-            packageUrl += `${packageUrlJson.Namespace.replace("@", "%40")}/`;
+            packageUrl += `${packageUrlJson.Namespace.replaceAll("@", "%40")}/`;
         }
-        packageUrl += `${packageUrlJson.Name.replace("@", "%40")}`;
+        packageUrl += `${packageUrlJson.Name.replaceAll("@", "%40")}`;
         if (packageUrlJson.Version) {
             packageUrl += `@${packageUrlJson.Version}`;
         }
