@@ -93,7 +93,7 @@ export default class ComponentDetection {
     packages.forEach(async (pkg: ComponentDetectionPackage) => {
       pkg.locationsFoundAt.forEach(async (location: any) => {
         if (!manifests[location.filePath]) {
-          const manifest = new Manifest(location.filePath, location.filePath);
+          const manifest = new Manifest(location, location);
           manifests.push(manifest);
         }
         if (pkg.topLevelReferrers.length == 0) {
