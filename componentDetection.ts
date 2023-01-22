@@ -48,7 +48,6 @@ export default class ComponentDetection {
     core.info("Running component-detection");
 
     try {
-      await exec.exec(`ls -la`);
       await exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath}`);
     } catch (error: any) {
       core.error(error);
@@ -97,9 +96,9 @@ export default class ComponentDetection {
           manifests.push(manifest);
         }
         if (pkg.topLevelReferrers.length == 0) {
-          manifests.find((manifest: Manifest) => manifest.file == location.filePath)?.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
+          manifests.find((manifest: Manifest) => manifest.name == location)?.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
         } else {
-          manifests.find((manifest: Manifest) => manifest.file == location.filePath)?.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));        }
+          manifests.find((manifest: Manifest) => manifest.name == location)?.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));        }
       });
     });
     return manifests;

@@ -23772,7 +23772,6 @@ class ComponentDetection {
         return __awaiter(this, void 0, void 0, function* () {
             core.info("Running component-detection");
             try {
-                yield exec.exec(`ls -la`);
                 yield exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath}`);
             }
             catch (error) {
@@ -23817,10 +23816,10 @@ class ComponentDetection {
                         manifests.push(manifest);
                     }
                     if (pkg.topLevelReferrers.length == 0) {
-                        (_a = manifests.find((manifest) => manifest.file == location.filePath)) === null || _a === void 0 ? void 0 : _a.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
+                        (_a = manifests.find((manifest) => manifest.name == location)) === null || _a === void 0 ? void 0 : _a.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
                     }
                     else {
-                        (_b = manifests.find((manifest) => manifest.file == location.filePath)) === null || _b === void 0 ? void 0 : _b.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
+                        (_b = manifests.find((manifest) => manifest.name == location)) === null || _b === void 0 ? void 0 : _b.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
                     }
                 }));
             }));
