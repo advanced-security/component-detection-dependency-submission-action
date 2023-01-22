@@ -91,7 +91,7 @@ export default class ComponentDetection {
     // Check the locationsFoundAt for every package and add each as a manifest
     packages.forEach(async (pkg: ComponentDetectionPackage) => {
       pkg.locationsFoundAt.forEach(async (location: any) => {
-        if (!manifests[location.filePath]) {
+        if (!manifests[location]) {
           const manifest = new Manifest(location, location);
           manifests.push(manifest);
         }
