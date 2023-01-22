@@ -23813,7 +23813,7 @@ class ComponentDetection {
                 pkg.locationsFoundAt.forEach((location) => __awaiter(this, void 0, void 0, function* () {
                     var _a, _b;
                     if (!manifests[location.filePath]) {
-                        const manifest = new dependency_submission_toolkit_1.Manifest(location.filePath, location.filePath);
+                        const manifest = new dependency_submission_toolkit_1.Manifest(location, location);
                         manifests.push(manifest);
                     }
                     if (pkg.topLevelReferrers.length == 0) {
