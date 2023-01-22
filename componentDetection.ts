@@ -17,8 +17,8 @@ import { Context } from '@actions/github/lib/context'
 import { unmockedModulePathPatterns } from './jest.config'
 dotenv.config();
 export default class ComponentDetection {
-  private componentDetectionPath = './component-detection';
-  private outputPath = './output.json';
+  protected static componentDetectionPath = './component-detection';
+  protected static outputPath = './output.json';
 
   // This is the default entry point for this class. 
   static async scanAndGetManifests(path: string): Promise<Manifest[] | undefined> {
@@ -29,13 +29,13 @@ export default class ComponentDetection {
   // Get the latest release from the component-detection repo, download the tarball, and extract it
   private static async downloadLatestRelease() {
     try {
-      const downloadURL = await getLatestReleaseURL();
+      const downloadURL = await this.getLatestReleaseURL();
       const blob = await (await fetch(new URL(downloadURL))).blob();
       const arrayBuffer = await blob.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
 
       // Write the blob to a file
-      await fs.writeFile(componentDetectionPath, buffer, {mode: 0o777, flag: 'w'}, 
+      await fs.writeFile(this.componentDetectionPath, buffer, {mode: 0o777, flag: 'w'}, 
       (err: any) => {
         if (err) {  
           core.error(err);
@@ -49,7 +49,7 @@ export default class ComponentDetection {
   // Run the component-detection CLI on the path specified
   private static async runComponentDetection(path: string) {
     try {
-      await exec.exec(`${componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${outputPath}`);
+      await exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath}`);
     } catch (error: any) {
       core.error(error);
     }
@@ -62,11 +62,11 @@ export default class ComponentDetection {
       const packageCache = new PackageCache();
       const packages: Array<ComponentDetectionPackage>= [];
       
-      const results = await fs.readFileSync(outputPath, 'utf8');
+      const results = await fs.readFileSync(this.outputPath, 'utf8');
       
       var json: any = JSON.parse(results);
       json.componentsFound.forEach(async (component: any) => {
-        const packageUrl = makePackageUrl(component.component.packageUrl);
+        const packageUrl = ComponentDetection.makePackageUrl(component.component.packageUrl);
         
         if (!packageCache.hasPackage(packageUrl)) {
           const pkg = new ComponentDetectionPackage(packageUrl, component.component.id, 
@@ -79,7 +79,7 @@ export default class ComponentDetection {
       // Set the transitive dependencies
       packages.forEach(async (pkg: ComponentDetectionPackage) => {
         pkg.toplevelReferrers.forEach(async (referrer: any) => {
-          const referrerPackage = packageCache.lookupPackage(makePackageUrl(referrer.packageUrl));
+          const referrerPackage = packageCache.lookupPackage(ComponentDetection.makePackageUrl(referrer.packageUrl));
           if (referrerPackage) {
             referrerPackage.dependsOn(pkg);
           }
@@ -97,9 +97,9 @@ export default class ComponentDetection {
             manifests.push(manifest);
           }
           if (pkg.toplevelReferrers.length == 0) {
-            manifests.find((manifest: Manifest) => manifest.file == location.filePath)?.addDirectDependency(pkg, getDependencyScope(pkg));
+            manifests.find((manifest: Manifest) => manifest.file == location.filePath)?.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
           } else {
-            manifests.find((manifest: Manifest) => manifest.file == location.filePath)?.addIndirectDependency(pkg, getDependencyScope(pkg));        }
+            manifests.find((manifest: Manifest) => manifest.file == location.filePath)?.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));        }
         });
       });
       core.debug(JSON.stringify(manifests));
@@ -129,7 +129,7 @@ export default class ComponentDetection {
     return packageUrl;
   }
 
-  private static getLatestReleaseURL(): Promise<string> {
+  private static async getLatestReleaseURL(): Promise<string> {
     const githubToken  = core.getInput('token') || process.env.GITHUB_TOKEN2 || "";  
     const octokit = github.getOctokit(githubToken);
     const owner = "microsoft";
