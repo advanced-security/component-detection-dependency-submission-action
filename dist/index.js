@@ -23792,13 +23792,13 @@ class ComponentDetection {
                 json.componentsFound.forEach((component) => __awaiter(this, void 0, void 0, function* () {
                     const packageUrl = ComponentDetection.makePackageUrl(component.component.packageUrl);
                     if (!packageCache.hasPackage(packageUrl)) {
-                        core.debug(component.component.id);
                         const pkg = new ComponentDetectionPackage(packageUrl, component.component.id, component.isDevelopmentDependency, component.topLevelReferrers, component.locationsFoundAt, component.containerDetailIds, component.containerLayerIds);
                         packageCache.addPackage(pkg);
                         packages.push(pkg);
                     }
                 }));
                 // Set the transitive dependencies
+                core.debug("Sorting out transitive dependencies");
                 packages.forEach((pkg) => __awaiter(this, void 0, void 0, function* () {
                     pkg.topLevelReferrers.forEach((referrer) => __awaiter(this, void 0, void 0, function* () {
                         const referrerPackage = packageCache.lookupPackage(ComponentDetection.makePackageUrl(referrer.packageUrl));

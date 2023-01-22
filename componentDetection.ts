@@ -69,8 +69,7 @@ export default class ComponentDetection {
         const packageUrl = ComponentDetection.makePackageUrl(component.component.packageUrl);
         
         if (!packageCache.hasPackage(packageUrl)) {
-          core.debug(component.component.id);
-          const pkg = new ComponentDetectionPackage(packageUrl, component.component.id, 
+                  const pkg = new ComponentDetectionPackage(packageUrl, component.component.id, 
             component.isDevelopmentDependency,component.topLevelReferrers,component.locationsFoundAt, component.containerDetailIds, component.containerLayerIds);
           packageCache.addPackage(pkg);
           packages.push(pkg);
@@ -78,6 +77,7 @@ export default class ComponentDetection {
       });
 
       // Set the transitive dependencies
+      core.debug("Sorting out transitive dependencies");
       packages.forEach(async (pkg: ComponentDetectionPackage) => {
         pkg.topLevelReferrers.forEach(async (referrer: any) => {
           const referrerPackage = packageCache.lookupPackage(ComponentDetection.makePackageUrl(referrer.packageUrl));
