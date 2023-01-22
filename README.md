@@ -1,13 +1,12 @@
-# Conda dependency submission action
+# Component detection action
 
-This repository scans Conda environment.yaml files and uploads the results to the dependency graph. While GitHub does not support alerting on OS-level dependencies, it will alert on any PyPI dependencies that are defined in the environment.yaml. 
-
+This GitHub Action runs the [microsoft/component-detection](https://github.com/microsoft/component-detection) library to automate dependency extraction at build time. It uses a combination of static and dynamic scanning to build a dependency tree and then uploads that to GitHub's dependency graph via the dependency submission API. This gives you more accurate Dependabot alerts, and support for a bunch of additional ecosystems. 
 
 ### Example workflow
 
 ```yaml
 
-name: Conda dependency submission
+name: Component Detection
 
 on:
   workflow_dispatch:
@@ -22,6 +21,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Conda dependency scanning
-        uses: jhutchings1/conda-dependency-submission-action@v0.0.2
+      - name: Component detection 
+        uses: jhutchings1/component-detection-action@v0.0.1
 ```        
+
+### Configuration options
+
+| Parameter | Description | Example | 
+| --- | --- | 
+filePath | The path to the directory containing the environment files to upload. Defaults to Actions working directory. | `'.'`
+directoryExclusionList | Filters out specific directories following a minimatch pattern. | `test`
+detectorArgs | Comma separated list of properties that can affect the detectors execution, like EnableIfDefaultOff that allows a specific detector that is in beta to run, the format for this property is DetectorId=EnableIfDefaultOff, for example Pip=EnableIfDefaultOff. | `Pip=EnableIfDefaultOff`
+dockerImagesToScan |Comma separated list of docker image names or hashes to execute container scanning on |  ubuntu:16.04,56bab49eef2ef07505f6a1b0d5bd3a601dfc3c76ad4460f24c91d6fa298369ab | 
+detectorsFilter | A comma separated list with the identifiers of the specific detectors to be used. | `Pip, RustCrateDetector`
+
+For more information: https://github.com/microsoft/component-detection
