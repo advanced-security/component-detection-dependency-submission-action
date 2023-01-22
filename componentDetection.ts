@@ -57,57 +57,52 @@ export default class ComponentDetection {
 
   private static async getManifestsFromResults(): Promise<Manifest[]| undefined> {
     core.info("Getting manifests from results");
-    try {
-      // Parse the result file and add the packages to the package cache
-      const packageCache = new PackageCache();
-      const packages: Array<ComponentDetectionPackage>= [];
+    // Parse the result file and add the packages to the package cache
+    const packageCache = new PackageCache();
+    const packages: Array<ComponentDetectionPackage>= [];
+    
+    const results = await fs.readFileSync(this.outputPath, 'utf8');
+    
+    var json: any = JSON.parse(results);
+    json.componentsFound.forEach(async (component: any) => {
+      const packageUrl = ComponentDetection.makePackageUrl(component.component.packageUrl);
       
-      const results = await fs.readFileSync(this.outputPath, 'utf8');
-      
-      var json: any = JSON.parse(results);
-      json.componentsFound.forEach(async (component: any) => {
-        const packageUrl = ComponentDetection.makePackageUrl(component.component.packageUrl);
-        
-        if (!packageCache.hasPackage(packageUrl)) {
-            const pkg = new ComponentDetectionPackage(packageUrl, component.component.id, 
-            component.isDevelopmentDependency,component.topLevelReferrers,component.locationsFoundAt, component.containerDetailIds, component.containerLayerIds);
-          packageCache.addPackage(pkg);
-          packages.push(pkg);
+      if (!packageCache.hasPackage(packageUrl)) {
+          const pkg = new ComponentDetectionPackage(packageUrl, component.component.id, 
+          component.isDevelopmentDependency,component.topLevelReferrers,component.locationsFoundAt, component.containerDetailIds, component.containerLayerIds);
+        packageCache.addPackage(pkg);
+        packages.push(pkg);
+      }
+    });
+
+    // Set the transitive dependencies
+    core.debug("Sorting out transitive dependencies");
+    packages.forEach(async (pkg: ComponentDetectionPackage) => {
+      pkg.topLevelReferrers.forEach(async (referrer: any) => {
+        const referrerPackage = packageCache.lookupPackage(ComponentDetection.makePackageUrl(referrer.packageUrl));
+        if (referrerPackage) {
+          referrerPackage.dependsOn(pkg);
         }
       });
+    });
 
-      // Set the transitive dependencies
-      core.debug("Sorting out transitive dependencies");
-      packages.forEach(async (pkg: ComponentDetectionPackage) => {
-        pkg.topLevelReferrers.forEach(async (referrer: any) => {
-          const referrerPackage = packageCache.lookupPackage(ComponentDetection.makePackageUrl(referrer.packageUrl));
-          if (referrerPackage) {
-            referrerPackage.dependsOn(pkg);
-          }
-        });
+    // Create manifests
+    const manifests: Array<Manifest> = [];
+
+    // Check the locationsFoundAt for every package and add each as a manifest
+    packages.forEach(async (pkg: ComponentDetectionPackage) => {
+      pkg.locationsFoundAt.forEach(async (location: any) => {
+        if (!manifests[location.filePath]) {
+          const manifest = new Manifest(location.filePath, location.filePath);
+          manifests.push(manifest);
+        }
+        if (pkg.topLevelReferrers.length == 0) {
+          manifests.find((manifest: Manifest) => manifest.file == location.filePath)?.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
+        } else {
+          manifests.find((manifest: Manifest) => manifest.file == location.filePath)?.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));        }
       });
-
-      // Create manifests
-      const manifests: Array<Manifest> = [];
-
-      // Check the locationsFoundAt for every package and add each as a manifest
-      packages.forEach(async (pkg: ComponentDetectionPackage) => {
-        pkg.locationsFoundAt.forEach(async (location: any) => {
-          if (!manifests[location.filePath]) {
-            const manifest = new Manifest(location.filePath, location.filePath);
-            manifests.push(manifest);
-          }
-          if (pkg.topLevelReferrers.length == 0) {
-            manifests.find((manifest: Manifest) => manifest.file == location.filePath)?.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
-          } else {
-            manifests.find((manifest: Manifest) => manifest.file == location.filePath)?.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));        }
-        });
-      });
-      return manifests;
-    } catch (error: any) {
-      core.error(error);
-      return undefined;
-    }
+    });
+    return manifests;
   }
 
   private static getDependencyScope(pkg: ComponentDetectionPackage) {

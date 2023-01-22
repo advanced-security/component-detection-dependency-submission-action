@@ -26,6 +26,7 @@ async function run() {
     id: github.context.runId.toString()
   });
 
+  core.debug(`Manifests: ${manifests}`);
   manifests?.forEach(manifest => {
     snapshot.addManifest(manifest);
   });
