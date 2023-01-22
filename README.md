@@ -1,13 +1,12 @@
-# Conda dependency submission action
+# Component detection action
 
-This repository scans Conda environment.yaml files and uploads the results to the dependency graph. While GitHub does not support alerting on OS-level dependencies, it will alert on any PyPI dependencies that are defined in the environment.yaml. 
-
+This GitHub Action runs the [microsoft/component-detection](https://github.com/microsoft/component-detection) library to automate dependency extraction at build time. It uses a combination of static and dynamic scanning to build a dependency tree and then uploads that to GitHub's dependency graph via the dependency submission API. This gives you more accurate Dependabot alerts, and support for a bunch of additional ecosystems. 
 
 ### Example workflow
 
 ```yaml
 
-name: Conda dependency submission
+name: Component Detection
 
 on:
   workflow_dispatch:
@@ -23,5 +22,5 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Conda dependency scanning
-        uses: jhutchings1/conda-dependency-submission-action@v0.0.2
+        uses: jhutchings1/component-detection-action@v0.0.1
 ```        
