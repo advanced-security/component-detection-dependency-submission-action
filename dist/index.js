@@ -23790,6 +23790,7 @@ class ComponentDetection {
                 const results = yield fs_1.default.readFileSync(this.outputPath, 'utf8');
                 var json = JSON.parse(results);
                 json.componentsFound.forEach((component) => __awaiter(this, void 0, void 0, function* () {
+                    core.debug(component.name);
                     const packageUrl = ComponentDetection.makePackageUrl(component.component.packageUrl);
                     if (!packageCache.hasPackage(packageUrl)) {
                         const pkg = new ComponentDetectionPackage(packageUrl, component.component.id, component.isDevelopmentDependency, component.topLevelReferrers, component.locationsFoundAt, component.containerDetailIds, component.containerLayerIds);

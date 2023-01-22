@@ -66,6 +66,7 @@ export default class ComponentDetection {
       
       var json: any = JSON.parse(results);
       json.componentsFound.forEach(async (component: any) => {
+        core.debug(component.name);
         const packageUrl = ComponentDetection.makePackageUrl(component.component.packageUrl);
         
         if (!packageCache.hasPackage(packageUrl)) {
