@@ -23760,11 +23760,7 @@ class ComponentDetection {
                 const buffer = Buffer.from(arrayBuffer);
                 // Write the blob to a file
                 core.debug("Writing binary to file");
-                yield fs_1.default.writeFile(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' }, (err) => {
-                    if (err) {
-                        core.error(err);
-                    }
-                });
+                yield fs_1.default.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
             }
             catch (error) {
                 core.error(error);
