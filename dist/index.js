@@ -23807,7 +23807,6 @@ class ComponentDetection {
                         }
                     }));
                 }));
-                core.debug(JSON.stringify(packages));
                 // Create manifests
                 const manifests = [];
                 // Check the locationsFoundAt for every package and add each as a manifest
@@ -23826,7 +23825,6 @@ class ComponentDetection {
                         }
                     }));
                 }));
-                core.debug(JSON.stringify(manifests));
                 return manifests;
             }
             catch (error) {

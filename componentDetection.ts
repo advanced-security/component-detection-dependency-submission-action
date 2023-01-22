@@ -69,7 +69,7 @@ export default class ComponentDetection {
         const packageUrl = ComponentDetection.makePackageUrl(component.component.packageUrl);
         
         if (!packageCache.hasPackage(packageUrl)) {
-                  const pkg = new ComponentDetectionPackage(packageUrl, component.component.id, 
+            const pkg = new ComponentDetectionPackage(packageUrl, component.component.id, 
             component.isDevelopmentDependency,component.topLevelReferrers,component.locationsFoundAt, component.containerDetailIds, component.containerLayerIds);
           packageCache.addPackage(pkg);
           packages.push(pkg);
@@ -86,7 +86,6 @@ export default class ComponentDetection {
           }
         });
       });
-      core.debug(JSON.stringify(packages));
 
       // Create manifests
       const manifests: Array<Manifest> = [];
@@ -104,7 +103,6 @@ export default class ComponentDetection {
             manifests.find((manifest: Manifest) => manifest.file == location.filePath)?.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));        }
         });
       });
-      core.debug(JSON.stringify(manifests));
       return manifests;
     } catch (error: any) {
       core.error(error);
