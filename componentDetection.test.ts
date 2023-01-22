@@ -7,7 +7,7 @@ test('Downloads CLI', async () => {
 });
 
 test('Runs CLI', async () => {
-   ComponentDetection.runComponentDetection('./test');
+   await ComponentDetection.runComponentDetection('./test');
    expect(fs.existsSync(ComponentDetection.outputPath));
 });
 
