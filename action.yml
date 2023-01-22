@@ -1,5 +1,5 @@
 name: 'Component detection action'
-description: 'Upload information about your dependencies to the GitHub dependency graph. Uses Microsoft''s component detection CLI and GitHub''s dependency submission API. '
+description: 'Upload information about your dependencies to the GitHub dependency graph using dependency submission API. '
 inputs:
   token:
     description: "GitHub Personal Access Token (PAT). Defaults to PAT provided by Actions runner."
