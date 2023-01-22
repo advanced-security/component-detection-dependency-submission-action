@@ -51,7 +51,9 @@ export default class ComponentDetection {
   // Run the component-detection CLI on the path specified
   private static async runComponentDetection(path: string) {
     core.info("Running component-detection");
+
     try {
+      await exec.exec(`ls -la`);
       await exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath}`);
     } catch (error: any) {
       core.error(error);

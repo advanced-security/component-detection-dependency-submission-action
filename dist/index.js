@@ -23776,6 +23776,7 @@ class ComponentDetection {
         return __awaiter(this, void 0, void 0, function* () {
             core.info("Running component-detection");
             try {
+                yield exec.exec(`ls -la`);
                 yield exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath}`);
             }
             catch (error) {
