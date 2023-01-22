@@ -1,13 +1,17 @@
-import {downloadLatestRelease, getManifestsFromResults, runComponentDetection} from './componentDetection';
+import ComponentDetection from './componentDetection';
+import fs from 'fs';
 
 test('Downloads CLI', async () => {
-  downloadLatestRelease();
+  ComponentDetection.downloadLatestRelease();
+  expect(fs.existsSync(ComponentDetection.componentDetectionPath));
 });
 
 test('Runs CLI', async () => {
-   runComponentDetection('./test');
+   ComponentDetection.runComponentDetection('./test');
+   expect(fs.existsSync(ComponentDetection.outputPath));
 });
 
 test('Parses CLI output', async () => {
-  getManifestsFromResults();
+  var manifests = await ComponentDetection.getManifestsFromResults();
+  expect(manifests?.length == 2);
 });

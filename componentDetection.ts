@@ -18,8 +18,8 @@ import { unmockedModulePathPatterns } from './jest.config'
 dotenv.config();
 
 export default class ComponentDetection {
-  protected static componentDetectionPath = './component-detection';
-  protected static outputPath = './output.json';
+  public static componentDetectionPath = './component-detection';
+  public static outputPath = './output.json';
 
   // This is the default entry point for this class. 
   static async scanAndGetManifests(path: string): Promise<Manifest[] | undefined> {
@@ -28,7 +28,7 @@ export default class ComponentDetection {
     return await this.getManifestsFromResults();
   }
   // Get the latest release from the component-detection repo, download the tarball, and extract it
-  private static async downloadLatestRelease() {
+  public static async downloadLatestRelease() {
     try {
       core.debug("Downloading latest release");
       const downloadURL = await this.getLatestReleaseURL();
@@ -45,7 +45,7 @@ export default class ComponentDetection {
   }
 
   // Run the component-detection CLI on the path specified
-  private static async runComponentDetection(path: string) {
+  public static async runComponentDetection(path: string) {
     core.info("Running component-detection");
 
     try {
@@ -64,7 +64,7 @@ export default class ComponentDetection {
     return parameters;
   }
 
-  private static async getManifestsFromResults(): Promise<Manifest[]| undefined> {
+  public static async getManifestsFromResults(): Promise<Manifest[]| undefined> {
     core.info("Getting manifests from results");
     // Parse the result file and add the packages to the package cache
     const packageCache = new PackageCache();

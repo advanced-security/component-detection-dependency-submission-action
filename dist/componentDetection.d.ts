@@ -1,12 +1,12 @@
 import { Manifest } from '@github/dependency-submission-toolkit';
 export default class ComponentDetection {
-    protected static componentDetectionPath: string;
-    protected static outputPath: string;
+    static componentDetectionPath: string;
+    static outputPath: string;
     static scanAndGetManifests(path: string): Promise<Manifest[] | undefined>;
-    private static downloadLatestRelease;
-    private static runComponentDetection;
+    static downloadLatestRelease(): Promise<void>;
+    static runComponentDetection(path: string): Promise<void>;
     private static getComponentDetectionParameters;
-    private static getManifestsFromResults;
+    static getManifestsFromResults(): Promise<Manifest[] | undefined>;
     private static getDependencyScope;
     private static makePackageUrl;
     private static getLatestReleaseURL;
