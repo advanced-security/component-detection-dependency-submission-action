@@ -1,4 +1,4 @@
-import {downloadLatestRelease, runComponentDetection} from './componentDetection';
+import {downloadLatestRelease, getManifestsFromResults, runComponentDetection} from './componentDetection';
 
 test('Downloads CLI', async () => {
   downloadLatestRelease();
@@ -6,4 +6,8 @@ test('Downloads CLI', async () => {
 
 test('Runs CLI', async () => {
    runComponentDetection('./test');
+});
+
+test('Parses CLI output', async () => {
+  getManifestsFromResults();
 });

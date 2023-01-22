@@ -1,7 +1,7 @@
 {
-  "name": "component-detection-action",
+  "name": "Conda-dependency-submission-action",
   "version": "1.0.0",
-  "description": "Component detection action",
+  "description": "Conda dependency submission action",
   "main": "index.ts",
   "scripts": {
     "lint": "eslint .",
@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jhutchings1/component-detection-action.git"
+    "url": "git+https://github.com/jhutchings1/spdx-to-dependency-graph-action.git"
   },
   "keywords": [
     "GitHub",
@@ -21,9 +21,9 @@
   "author": "",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/jhutchings1/component-detection-action/issues"
+    "url": "https://github.com/jhutchings1/spdx-to-dependency-graph-action/issues"
   },
-  "homepage": "https://github.com/jhutchings1/component-detection-action#readme",
+  "homepage": "https://github.com/jhutchings1/spdx-to-dependency-graph-action#readme",
   "dependencies": {
     "@actions/core": "^1.10.0",
     "@actions/github": "^5.1.1",

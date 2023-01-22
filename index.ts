@@ -10,16 +10,15 @@ import {
   submitSnapshot
 } from '@github/dependency-submission-toolkit';
 
-import CondaParser from './condaParser';
+import ComponentDetection from './componentDetection';
 
 async function run() {
-  let manifests = CondaParser.getManifestsFromEnvironmentFiles(
-    CondaParser.searchFiles(core.getInput('filePath'), core.getInput('filePattern')));
+  let manifests = await ComponentDetection.scanAndGetManifests(core.getInput('path'));
   
   let snapshot = new Snapshot({
-      name: "conda-dependency-submission-action",
+      name: "Component Detection",
       version: "0.0.1",
-      url: "https://github.com/jhutchings1/conda-dependency-submission-action",
+      url: "https://github.com/jhutchings1/component-detection-action",
   }, 
   github.context,
   {
