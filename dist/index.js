@@ -23799,7 +23799,7 @@ class ComponentDetection {
                 }));
                 // Set the transitive dependencies
                 packages.forEach((pkg) => __awaiter(this, void 0, void 0, function* () {
-                    pkg.toplevelReferrers.forEach((referrer) => __awaiter(this, void 0, void 0, function* () {
+                    pkg.topLevelReferrers.forEach((referrer) => __awaiter(this, void 0, void 0, function* () {
                         const referrerPackage = packageCache.lookupPackage(ComponentDetection.makePackageUrl(referrer.packageUrl));
                         if (referrerPackage) {
                             referrerPackage.dependsOn(pkg);
@@ -23817,7 +23817,7 @@ class ComponentDetection {
                             const manifest = new dependency_submission_toolkit_1.Manifest(location.filePath, location.filePath);
                             manifests.push(manifest);
                         }
-                        if (pkg.toplevelReferrers.length == 0) {
+                        if (pkg.topLevelReferrers.length == 0) {
                             (_a = manifests.find((manifest) => manifest.file == location.filePath)) === null || _a === void 0 ? void 0 : _a.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
                         }
                         else {
@@ -23878,7 +23878,7 @@ class ComponentDetectionPackage extends dependency_submission_toolkit_1.Package 
         super(packageUrl);
         this.id = id;
         this.isDevelopmentDependency = isDevelopmentDependency;
-        this.toplevelReferrers = topLevelReferrers;
+        this.topLevelReferrers = topLevelReferrers;
         this.locationsFoundAt = locationsFoundAt;
         this.containerDetailIds = containerDetailIds;
         this.containerLayerIds = containerLayerIds;

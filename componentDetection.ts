@@ -78,7 +78,7 @@ export default class ComponentDetection {
 
       // Set the transitive dependencies
       packages.forEach(async (pkg: ComponentDetectionPackage) => {
-        pkg.toplevelReferrers.forEach(async (referrer: any) => {
+        pkg.topLevelReferrers.forEach(async (referrer: any) => {
           const referrerPackage = packageCache.lookupPackage(ComponentDetection.makePackageUrl(referrer.packageUrl));
           if (referrerPackage) {
             referrerPackage.dependsOn(pkg);
@@ -97,7 +97,7 @@ export default class ComponentDetection {
             const manifest = new Manifest(location.filePath, location.filePath);
             manifests.push(manifest);
           }
-          if (pkg.toplevelReferrers.length == 0) {
+          if (pkg.topLevelReferrers.length == 0) {
             manifests.find((manifest: Manifest) => manifest.file == location.filePath)?.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
           } else {
             manifests.find((manifest: Manifest) => manifest.file == location.filePath)?.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));        }
@@ -153,22 +153,10 @@ export default class ComponentDetection {
 
 class ComponentDetectionPackage extends Package {
   
-  constructor(packageUrl: string, id: string, isDevelopmentDependency:boolean, topLevelReferrers: [], 
-    locationsFoundAt: [], containerDetailIds: [], containerLayerIds: []) {
+  constructor(packageUrl: string, public id: string, public isDevelopmentDependency:boolean, public topLevelReferrers: [], 
+    public locationsFoundAt: [], public containerDetailIds: [], public containerLayerIds: []) {
     super(packageUrl);
-    this.id = id;
-    this.isDevelopmentDependency = isDevelopmentDependency;
-    this.toplevelReferrers = topLevelReferrers;
-    this.locationsFoundAt = locationsFoundAt;
-    this.containerDetailIds = containerDetailIds;
-    this.containerLayerIds = containerLayerIds;
   }
-  id: string;
-  isDevelopmentDependency: boolean;
-  toplevelReferrers: [];
-  locationsFoundAt: [];
-  containerDetailIds: [];
-  containerLayerIds: [];
 }
 
 
