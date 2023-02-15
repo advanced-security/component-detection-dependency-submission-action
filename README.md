@@ -36,3 +36,6 @@ dockerImagesToScan |Comma separated list of docker image names or hashes to exec
 detectorsFilter | A comma separated list with the identifiers of the specific detectors to be used. | `Pip, RustCrateDetector`
 
 For more information: https://github.com/microsoft/component-detection
+
+# License
+This project is licensed under the terms of the MIT open source license. Please refer to [MIT](LICENSE.md) for the full terms.
