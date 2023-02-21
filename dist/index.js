@@ -23939,7 +23939,7 @@ function run() {
         let snapshot = new dependency_submission_toolkit_1.Snapshot({
             name: "Component Detection",
             version: "0.0.1",
-            url: "https://github.com/jhutchings1/component-detection-action",
+            url: "https://github.com/advanced-security/component-detection-dependency-submission-action",
         }, github.context, {
             correlator: `${github.context.job}`,
             id: github.context.runId.toString()

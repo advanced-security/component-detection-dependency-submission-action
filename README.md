@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Component detection 
-        uses: jhutchings1/component-detection-action@v0.0.1
+        uses: advanced-security/component-detection-dependency-submission-action@v0.0.1
 ```        
 
 ### Configuration options
