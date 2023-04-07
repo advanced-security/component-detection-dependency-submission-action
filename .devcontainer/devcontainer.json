@@ -4,9 +4,7 @@
       "codespaces": {
         "repositories": {
           "microsoft/component-detection": {
-            "permissions": {
-              "issues": "read"
-            }
+            "permissions": "read-all"
           }
         }
       }
