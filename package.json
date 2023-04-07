@@ -35,7 +35,7 @@
     "yaml": "^2.2.1"
   },
   "devDependencies": {
-    "@types/glob": "^8.0.1",
+    "@types/glob": "^8.1.0",
     "@types/jest": "^29.4.0",
     "@vercel/ncc": "^0.36.1",
     "eslint": "^8.38.0",
