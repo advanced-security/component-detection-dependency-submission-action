@@ -134,7 +134,7 @@ export default class ComponentDetection {
   }
 
   private static async getLatestReleaseURL(): Promise<string> {
-    const githubToken  = core.getInput('token') || process.env.GITHUB_TOKEN2 || "";  
+    const githubToken  = core.getInput('token') || process.env.GITHUB_TOKEN || "";  
     const octokit = github.getOctokit(githubToken);
     const owner = "microsoft";
     const repo = "component-detection";

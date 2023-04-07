@@ -23853,7 +23853,7 @@ class ComponentDetection {
     }
     static getLatestReleaseURL() {
         return __awaiter(this, void 0, void 0, function* () {
-            const githubToken = core.getInput('token') || process.env.GITHUB_TOKEN2 || "";
+            const githubToken = core.getInput('token') || process.env.GITHUB_TOKEN || "";
             const octokit = github.getOctokit(githubToken);
             const owner = "microsoft";
             const repo = "component-detection";

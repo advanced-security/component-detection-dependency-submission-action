@@ -1,0 +1,14 @@
+{
+    "image":"mcr.microsoft.com/devcontainers/universal:2",
+    "customizations": {
+      "codespaces": {
+        "repositories": {
+          "microsoft/component-detection": {
+            "permissions": {
+              "issues": "read"
+            }
+          }
+        }
+      }
+    }
+}
