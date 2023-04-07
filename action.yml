@@ -1,4 +1,4 @@
-name: 'Component detection action'
+name: 'Component Detection dependency submission action'
 description: 'Upload information about your dependencies to the GitHub dependency graph using dependency submission API. '
 inputs:
   token:
