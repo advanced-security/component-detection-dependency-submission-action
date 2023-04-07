@@ -11,9 +11,12 @@ jobs:
   # test action works running from the graph
   test:
     runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
     steps:
     - uses: actions/checkout@v3
-    - run: |
+    - name: Unit test
+      run: |
         npm install
-        node --experimental-vm-modules node_modules/jest/bin/jest.js
+        npm run test
         
