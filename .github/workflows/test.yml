@@ -15,7 +15,7 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
     steps:
     - uses: actions/checkout@v3
-    - run: |
-        npm install
-        node --experimental-vm-modules node_modules/jest/bin/jest.js
+    - name: Unit test
+      run: |
+        npm run test
         
