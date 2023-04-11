@@ -23425,8 +23425,11 @@ class ComponentDetection {
         if (packageUrlJson.Version) {
             packageUrl += `@${packageUrlJson.Version}`;
         }
-        if (packageUrlJson.Qualifiers) {
-            packageUrl += `?${packageUrlJson.Qualifiers}`;
+        if (packageUrlJson.Qualifiers !== null) {
+            const qualifierString = Object.entries(packageUrlJson.Qualifiers)
+                .map(([key, value]) => `${key}=${value}`)
+                .join("&");
+            packageUrl += `?${qualifierString}`;
         }
         return packageUrl;
     }
