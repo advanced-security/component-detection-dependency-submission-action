@@ -18,7 +18,7 @@ import { unmockedModulePathPatterns } from './jest.config'
 dotenv.config();
 
 export default class ComponentDetection {
-  public static componentDetectionPath = './component-detection';
+  public static componentDetectionPath = process.platform === "win32" ? './component-detection.exe' : './component-detection';
   public static outputPath = './output.json';
 
   // This is the default entry point for this class. 
