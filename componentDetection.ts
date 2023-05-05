@@ -30,14 +30,14 @@ export default class ComponentDetection {
   // Get the latest release from the component-detection repo, download the tarball, and extract it
   public static async downloadLatestRelease() {
     try {
-      core.debug("Downloading latest release");
+      core.debug(`Downloading latest release for ${process.platform}`);
       const downloadURL = await this.getLatestReleaseURL();
       const blob = await (await fetch(new URL(downloadURL))).blob();
       const arrayBuffer = await blob.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
 
       // Write the blob to a file
-      core.debug("Writing binary to file");
+      core.debug(`Writing binary to file ${this.componentDetectionPath}`);
       await fs.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
     } catch (error: any) {
       core.error(error);
