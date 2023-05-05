@@ -18,7 +18,7 @@ import { unmockedModulePathPatterns } from './jest.config'
 dotenv.config();
 
 export default class ComponentDetection {
-  public static componentDetectionPath = './component-detection';
+  public static componentDetectionPath = process.platform === "win32" ? './component-detection.exe' : './component-detection';
   public static outputPath = './output.json';
 
   // This is the default entry point for this class. 
@@ -30,18 +30,18 @@ export default class ComponentDetection {
   // Get the latest release from the component-detection repo, download the tarball, and extract it
   public static async downloadLatestRelease() {
     try {
-      core.debug("Downloading latest release");
+      core.debug(`Downloading latest release for ${process.platform}`);
       const downloadURL = await this.getLatestReleaseURL();
       const blob = await (await fetch(new URL(downloadURL))).blob();
       const arrayBuffer = await blob.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
 
       // Write the blob to a file
-      core.debug("Writing binary to file");
-      await fs.writeFileSync(this.componentDetectionPath, buffer, {mode: 0o777, flag: 'w'});
+      core.debug(`Writing binary to file ${this.componentDetectionPath}`);
+      await fs.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
     } catch (error: any) {
       core.error(error);
-    } 
+    }
   }
 
   // Run the component-detection CLI on the path specified
@@ -64,21 +64,21 @@ export default class ComponentDetection {
     return parameters;
   }
 
-  public static async getManifestsFromResults(): Promise<Manifest[]| undefined> {
+  public static async getManifestsFromResults(): Promise<Manifest[] | undefined> {
     core.info("Getting manifests from results");
     // Parse the result file and add the packages to the package cache
     const packageCache = new PackageCache();
-    const packages: Array<ComponentDetectionPackage>= [];
-    
+    const packages: Array<ComponentDetectionPackage> = [];
+
     const results = await fs.readFileSync(this.outputPath, 'utf8');
-    
+
     var json: any = JSON.parse(results);
     json.componentsFound.forEach(async (component: any) => {
       const packageUrl = ComponentDetection.makePackageUrl(component.component.packageUrl);
-      
+
       if (!packageCache.hasPackage(packageUrl)) {
-          const pkg = new ComponentDetectionPackage(packageUrl, component.component.id, 
-          component.isDevelopmentDependency,component.topLevelReferrers,component.locationsFoundAt, component.containerDetailIds, component.containerLayerIds);
+        const pkg = new ComponentDetectionPackage(packageUrl, component.component.id,
+          component.isDevelopmentDependency, component.topLevelReferrers, component.locationsFoundAt, component.containerDetailIds, component.containerLayerIds);
         packageCache.addPackage(pkg);
         packages.push(pkg);
       }
@@ -108,7 +108,8 @@ export default class ComponentDetection {
         if (pkg.topLevelReferrers.length == 0) {
           manifests.find((manifest: Manifest) => manifest.name == location)?.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
         } else {
-          manifests.find((manifest: Manifest) => manifest.name == location)?.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));        }
+          manifests.find((manifest: Manifest) => manifest.name == location)?.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
+        }
       });
     });
     return manifests;
@@ -134,7 +135,7 @@ export default class ComponentDetection {
   }
 
   private static async getLatestReleaseURL(): Promise<string> {
-    const githubToken  = core.getInput('token') || process.env.GITHUB_TOKEN || "";  
+    const githubToken = core.getInput('token') || process.env.GITHUB_TOKEN || "";
     const octokit = github.getOctokit(githubToken);
     const owner = "microsoft";
     const repo = "component-detection";
@@ -144,8 +145,9 @@ export default class ComponentDetection {
     });
 
     var downloadURL: string = "";
+    const assetName = process.platform === "win32" ? "component-detection-win-x64.exe" : "component-detection-linux-x64";
     latestRelease.data.assets.forEach((asset: any) => {
-      if (asset.name === "component-detection-linux-x64") {
+      if (asset.name === assetName) {
         downloadURL = asset.browser_download_url;
       }
     });
@@ -155,8 +157,8 @@ export default class ComponentDetection {
 }
 
 class ComponentDetectionPackage extends Package {
-  
-  constructor(packageUrl: string, public id: string, public isDevelopmentDependency:boolean, public topLevelReferrers: [], 
+
+  constructor(packageUrl: string, public id: string, public isDevelopmentDependency: boolean, public topLevelReferrers: [],
     public locationsFoundAt: [], public containerDetailIds: [], public containerLayerIds: []) {
     super(packageUrl);
   }
