@@ -23332,13 +23332,13 @@ class ComponentDetection {
     static downloadLatestRelease() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                core.debug("Downloading latest release");
+                core.debug(`Downloading latest release for ${process.platform}`);
                 const downloadURL = yield this.getLatestReleaseURL();
                 const blob = yield (yield (0, cross_fetch_1.default)(new URL(downloadURL))).blob();
                 const arrayBuffer = yield blob.arrayBuffer();
                 const buffer = Buffer.from(arrayBuffer);
                 // Write the blob to a file
-                core.debug("Writing binary to file");
+                core.debug(`Writing binary to file ${this.componentDetectionPath}`);
                 yield fs_1.default.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
             }
             catch (error) {
@@ -23440,8 +23440,9 @@ class ComponentDetection {
                 owner, repo
             });
             var downloadURL = "";
+            const assetName = process.platform === "win32" ? "component-detection-win-x64.exe" : "component-detection-linux-x64";
             latestRelease.data.assets.forEach((asset) => {
-                if (asset.name === "component-detection-linux-x64") {
+                if (asset.name === assetName) {
                     downloadURL = asset.browser_download_url;
                 }
             });
@@ -23450,7 +23451,7 @@ class ComponentDetection {
     }
 }
 exports["default"] = ComponentDetection;
-ComponentDetection.componentDetectionPath = './component-detection';
+ComponentDetection.componentDetectionPath = process.platform === "win32" ? './component-detection.exe' : './component-detection';
 ComponentDetection.outputPath = './output.json';
 class ComponentDetectionPackage extends dependency_submission_toolkit_1.Package {
     constructor(packageUrl, id, isDevelopmentDependency, topLevelReferrers, locationsFoundAt, containerDetailIds, containerLayerIds) {
