@@ -119,7 +119,7 @@ export default class ComponentDetection {
     return pkg.isDevelopmentDependency ? 'development' : 'runtime'
   }
 
-  private static makePackageUrl(packageUrlJson: any): string {
+  public static makePackageUrl(packageUrlJson: any): string {
     var packageUrl = `${packageUrlJson.Scheme}:${packageUrlJson.Type}/`;
     if (packageUrlJson.Namespace) {
       packageUrl += `${packageUrlJson.Namespace.replaceAll("@", "%40")}/`;
@@ -128,8 +128,13 @@ export default class ComponentDetection {
     if (packageUrlJson.Version) {
       packageUrl += `@${packageUrlJson.Version}`;
     }
-    if (packageUrlJson.Qualifiers) {
-      packageUrl += `?${packageUrlJson.Qualifiers}`;
+    if (typeof packageUrlJson.Qualifiers === "object"
+      && packageUrlJson.Qualifiers !== null
+      && Object.keys(packageUrlJson.Qualifiers).length > 0) {
+      const qualifierString = Object.entries(packageUrlJson.Qualifiers)
+        .map(([key, value]) => `${key}=${value}`)
+        .join("&");
+      packageUrl += `?${qualifierString}`;
     }
     return packageUrl;
   }

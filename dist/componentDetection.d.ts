@@ -8,6 +8,6 @@ export default class ComponentDetection {
     private static getComponentDetectionParameters;
     static getManifestsFromResults(): Promise<Manifest[] | undefined>;
     private static getDependencyScope;
-    private static makePackageUrl;
+    static makePackageUrl(packageUrlJson: any): string;
     private static getLatestReleaseURL;
 }
