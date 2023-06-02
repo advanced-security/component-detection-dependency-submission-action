@@ -20,7 +20,7 @@ test("Parses CLI output", async () => {
 });
 
 describe("ComponentDetection.makePackageUrl", () => {
-  test("returns a valid package url", () => {
+  test("returns a valid package url from saturated object", () => {
     const packageUrl = ComponentDetection.makePackageUrl({
       Scheme: "pkg",
       Type: "npm",
@@ -34,6 +34,20 @@ describe("ComponentDetection.makePackageUrl", () => {
     });
     expect(packageUrl).toBe(
       "pkg:npm/github/component-detection-action@0.0.2?arch=amd64&os=linux"
+    );
+  });
+
+  test("returns valid package url without dangling ? with empty qualifers", () => {
+    const packageUrl = ComponentDetection.makePackageUrl({
+      Scheme: "pkg",
+      Type: "npm",
+      Namespace: "github",
+      Name: "component-detection-action",
+      Version: "0.0.2",
+      Qualifiers: { },
+    });
+    expect(packageUrl).toBe(
+      "pkg:npm/github/component-detection-action@0.0.2"
     );
   });
 });
