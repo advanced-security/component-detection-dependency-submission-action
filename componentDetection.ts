@@ -152,7 +152,8 @@ export default class ComponentDetection {
     const repo = "component-detection";
     core.debug("Attempting to download latest release from " + serverUrl);
 
-    const latestRelease = await octokit.rest.repos.getLatestRelease({
+    try { 
+      const latestRelease = await octokit.rest.repos.getLatestRelease({
       owner, repo
     });
 
@@ -165,6 +166,10 @@ export default class ComponentDetection {
     });
 
     return downloadURL;
+    } catch (error: any) {
+    core.error(error);
+    throw new Error("Failed to download latest release");
+    }
   }
 }
 
