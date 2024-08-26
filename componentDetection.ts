@@ -142,11 +142,12 @@ export default class ComponentDetection {
   private static async getLatestReleaseURL(): Promise<string> {
     var githubToken = core.getInput('token') || process.env.GITHUB_TOKEN || "";
 
-    // If the releaseServerUrl is github.com and Actions environment is GHES, then use an empty string as the token
-    if (core.getInput('releaseServerUrl') != github.context.apiUrl) {
+    // If the releaseServerUrl is set to a different value than the default, then use an empty string as the token  
+    if (core.getInput('releaseServerUrl') != null) {
       githubToken = "";
     }
-    const octokit = github.getOctokit(githubToken, { baseUrl: core.getInput('releaseServerUrl') });
+    const serverUrl = core.getInput('releaseServerUrl') || github.context.apiUrl;
+    const octokit = github.getOctokit(githubToken, { baseUrl: serverUrl });
     const owner = "microsoft";
     const repo = "component-detection";
 
