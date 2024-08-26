@@ -169,8 +169,10 @@ export default class ComponentDetection {
 
     return downloadURL;
     } catch (error: any) {
-    core.error(error);
-    throw new Error("Failed to download latest release");
+      core.error(error);
+      core.debug(error.message);
+      core.debug(error.stack);
+      throw new Error("Failed to download latest release");
     }
   }
 }

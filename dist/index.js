@@ -24994,6 +24994,8 @@ class ComponentDetection {
             }
             catch (error) {
                 core.error(error);
+                core.debug(error.message);
+                core.debug(error.stack);
                 throw new Error("Failed to download latest release");
             }
         });
