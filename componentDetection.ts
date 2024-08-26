@@ -160,9 +160,7 @@ export default class ComponentDetection {
     core.debug("Attempting to download latest release from " + serverUrl);
 
     try { 
-      const latestRelease = await octokit.rest.repos.getLatestRelease({
-      owner, repo
-    });
+      const latestRelease = await octokit.request("GET /repos/{owner}/{repo}/releases/latest", {owner, repo});
 
     var downloadURL: string = "";
     const assetName = process.platform === "win32" ? "component-detection-win-x64.exe" : "component-detection-linux-x64";

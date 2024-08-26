@@ -24985,9 +24985,7 @@ class ComponentDetection {
             const repo = "component-detection";
             core.debug("Attempting to download latest release from " + serverUrl);
             try {
-                const latestRelease = yield octokit.rest.repos.getLatestRelease({
-                    owner, repo
-                });
+                const latestRelease = yield octokit.request("GET /repos/{owner}/{repo}/releases/latest", { owner, repo });
                 var downloadURL = "";
                 const assetName = process.platform === "win32" ? "component-detection-win-x64.exe" : "component-detection-linux-x64";
                 latestRelease.data.assets.forEach((asset) => {
