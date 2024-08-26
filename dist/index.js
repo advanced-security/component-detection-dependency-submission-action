@@ -24969,12 +24969,11 @@ class ComponentDetection {
     static getLatestReleaseURL() {
         return __awaiter(this, void 0, void 0, function* () {
             var githubToken = core.getInput('token') || process.env.GITHUB_TOKEN || "";
-            // If the releaseServerUrl is set to a different value than the default, then use an empty string as the token  
+            // If the releaseServerUrl is set, then use an empty string as the token  
             if (core.getInput('releaseServerUrl') != null) {
                 githubToken = "";
             }
             const serverUrl = core.getInput('releaseServerUrl') || github.context.apiUrl;
-            //const octokit = github.getOctokit(githubToken, { baseUrl: serverUrl });
             const octokit = new octokit_1.Octokit({ auth: githubToken, baseUrl: serverUrl, request: { fetch: cross_fetch_1.default }, log: {
                     debug: core.debug,
                     info: core.info,
