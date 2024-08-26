@@ -1,5 +1,6 @@
 import * as github from '@actions/github'
 import * as core from '@actions/core'
+import { Octokit, App } from "octokit"
 import {
   PackageCache,
   BuildTarget,
@@ -147,7 +148,8 @@ export default class ComponentDetection {
       githubToken = "";
     }
     const serverUrl = core.getInput('releaseServerUrl') || github.context.apiUrl;
-    const octokit = github.getOctokit(githubToken, { baseUrl: serverUrl });
+    //const octokit = github.getOctokit(githubToken, { baseUrl: serverUrl });
+    const octokit = new Octokit({ auth: githubToken, baseUrl: serverUrl });
     const owner = "microsoft";
     const repo = "component-detection";
     core.debug("Attempting to download latest release from " + serverUrl);
