@@ -149,7 +149,7 @@ export default class ComponentDetection {
     }
     const serverUrl = core.getInput('releaseServerUrl') || github.context.apiUrl;
     //const octokit = github.getOctokit(githubToken, { baseUrl: serverUrl });
-    const octokit = new Octokit({ auth: githubToken, baseUrl: serverUrl });
+    const octokit = new Octokit({ auth: githubToken, baseUrl: serverUrl, request: { fetch: fetch} });
     const owner = "microsoft";
     const repo = "component-detection";
     core.debug("Attempting to download latest release from " + serverUrl);
