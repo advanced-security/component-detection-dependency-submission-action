@@ -24,7 +24,6 @@ inputs:
   releaseServerUrl: 
     description: 'The baseUrl of the release server to use. By default, this is github.com/api/v3, but it can be set to your GitHub Enterprise Server instead.'
     required: false
-    default: 'https://github.com/api/v3'
 runs:
   using: 'node16'
   main: 'dist/index.js'
