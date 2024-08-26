@@ -149,7 +149,12 @@ export default class ComponentDetection {
     }
     const serverUrl = core.getInput('releaseServerUrl') || github.context.apiUrl;
     //const octokit = github.getOctokit(githubToken, { baseUrl: serverUrl });
-    const octokit = new Octokit({ auth: githubToken, baseUrl: serverUrl, request: { fetch: fetch} });
+    const octokit = new Octokit({ auth: githubToken, baseUrl: serverUrl, request: { fetch: fetch}, log: {
+      debug: core.debug,
+      info: core.info,
+      warn: core.warning,
+      error: core.error
+    }, });
     const owner = "microsoft";
     const repo = "component-detection";
     core.debug("Attempting to download latest release from " + serverUrl);
@@ -172,7 +177,7 @@ export default class ComponentDetection {
       core.error(error);
       core.debug(error.message);
       core.debug(error.stack);
-      throw new Error("Failed to download latest release");
+      throw new Error("Failed to download latest release"); 
     }
   }
 }
