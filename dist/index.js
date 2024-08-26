@@ -23437,21 +23437,33 @@ class ComponentDetection {
     }
     static getLatestReleaseURL() {
         return __awaiter(this, void 0, void 0, function* () {
-            const githubToken = core.getInput('token') || process.env.GITHUB_TOKEN || "";
-            const octokit = github.getOctokit(githubToken);
+            var githubToken = core.getInput('token') || process.env.GITHUB_TOKEN || "";
+            // If the releaseServerUrl is set to a different value than the default, then use an empty string as the token  
+            if (core.getInput('releaseServerUrl') != null) {
+                githubToken = "";
+            }
+            const serverUrl = core.getInput('releaseServerUrl') || github.context.apiUrl;
+            const octokit = github.getOctokit(githubToken, { baseUrl: serverUrl });
             const owner = "microsoft";
             const repo = "component-detection";
-            const latestRelease = yield octokit.rest.repos.getLatestRelease({
-                owner, repo
-            });
-            var downloadURL = "";
-            const assetName = process.platform === "win32" ? "component-detection-win-x64.exe" : "component-detection-linux-x64";
-            latestRelease.data.assets.forEach((asset) => {
-                if (asset.name === assetName) {
-                    downloadURL = asset.browser_download_url;
-                }
-            });
-            return downloadURL;
+            core.debug("Attempting to download latest release from " + serverUrl);
+            try {
+                const latestRelease = yield octokit.rest.repos.getLatestRelease({
+                    owner, repo
+                });
+                var downloadURL = "";
+                const assetName = process.platform === "win32" ? "component-detection-win-x64.exe" : "component-detection-linux-x64";
+                latestRelease.data.assets.forEach((asset) => {
+                    if (asset.name === assetName) {
+                        downloadURL = asset.browser_download_url;
+                    }
+                });
+                return downloadURL;
+            }
+            catch (error) {
+                core.error(error);
+                throw new Error("Failed to download latest release");
+            }
         });
     }
 }
