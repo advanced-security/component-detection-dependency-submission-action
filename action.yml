@@ -21,9 +21,6 @@ inputs:
   detectorsFilter: 
     description: 'A comma separated list with the identifiers of the specific detectors to be used. This is meant to be used for testing purposes only.'
     required: false
-  releaseServerUrl: 
-    description: 'The baseUrl of the release server to use. If you set this, it should be set to `https://api.github.com`'
-    required: false
 runs:
   using: 'node16'
   main: 'dist/index.js'

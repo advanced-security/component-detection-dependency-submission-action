@@ -24968,13 +24968,14 @@ class ComponentDetection {
     }
     static getLatestReleaseURL() {
         return __awaiter(this, void 0, void 0, function* () {
-            var githubToken = core.getInput('token') || process.env.GITHUB_TOKEN || "";
-            // If the releaseServerUrl is set, then use an empty string as the token  
-            if (core.getInput('releaseServerUrl') != null) {
+            let githubToken = core.getInput('token') || process.env.GITHUB_TOKEN || "";
+            const githubAPIURL = 'https://api.github.com';
+            let ghesMode = github.context.apiUrl != githubAPIURL;
+            // If the we're running in GHES, then use an empty string as the token  
+            if (ghesMode) {
                 githubToken = "";
             }
-            const serverUrl = core.getInput('releaseServerUrl') || github.context.apiUrl;
-            const octokit = new octokit_1.Octokit({ auth: githubToken, baseUrl: serverUrl, request: { fetch: cross_fetch_1.default }, log: {
+            const octokit = new octokit_1.Octokit({ auth: githubToken, baseUrl: githubAPIURL, request: { fetch: cross_fetch_1.default }, log: {
                     debug: core.debug,
                     info: core.info,
                     warn: core.warning,
@@ -24982,7 +24983,7 @@ class ComponentDetection {
                 }, });
             const owner = "microsoft";
             const repo = "component-detection";
-            core.debug("Attempting to download latest release from " + serverUrl);
+            core.debug("Attempting to download latest release from " + githubAPIURL);
             try {
                 const latestRelease = yield octokit.request("GET /repos/{owner}/{repo}/releases/latest", { owner, repo });
                 var downloadURL = "";

@@ -141,14 +141,16 @@ export default class ComponentDetection {
   }
 
   private static async getLatestReleaseURL(): Promise<string> {
-    var githubToken = core.getInput('token') || process.env.GITHUB_TOKEN || "";
+    let githubToken = core.getInput('token') || process.env.GITHUB_TOKEN || "";
 
-    // If the releaseServerUrl is set, then use an empty string as the token  
-    if (core.getInput('releaseServerUrl') != null) {
+    const githubAPIURL = 'https://api.github.com' 
+
+    let ghesMode = github.context.apiUrl != githubAPIURL;
+    // If the we're running in GHES, then use an empty string as the token  
+    if (ghesMode) {
       githubToken = "";
     }
-    const serverUrl = core.getInput('releaseServerUrl') || github.context.apiUrl;
-    const octokit = new Octokit({ auth: githubToken, baseUrl: serverUrl, request: { fetch: fetch}, log: {
+    const octokit = new Octokit({ auth: githubToken, baseUrl: githubAPIURL, request: { fetch: fetch}, log: {
       debug: core.debug,
       info: core.info,
       warn: core.warning,
@@ -157,7 +159,7 @@ export default class ComponentDetection {
 
     const owner = "microsoft";
     const repo = "component-detection";
-    core.debug("Attempting to download latest release from " + serverUrl);
+    core.debug("Attempting to download latest release from " + githubAPIURL);
 
     try { 
       const latestRelease = await octokit.request("GET /repos/{owner}/{repo}/releases/latest", {owner, repo});
