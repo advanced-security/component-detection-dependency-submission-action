@@ -1,5 +1,6 @@
 import * as github from '@actions/github'
 import * as core from '@actions/core'
+import { Octokit, App } from "octokit"
 import {
   PackageCache,
   BuildTarget,
@@ -140,14 +141,28 @@ export default class ComponentDetection {
   }
 
   private static async getLatestReleaseURL(): Promise<string> {
-    const githubToken = core.getInput('token') || process.env.GITHUB_TOKEN || "";
-    const octokit = github.getOctokit(githubToken);
+    let githubToken = core.getInput('token') || process.env.GITHUB_TOKEN || "";
+
+    const githubAPIURL = 'https://api.github.com' 
+
+    let ghesMode = github.context.apiUrl != githubAPIURL;
+    // If the we're running in GHES, then use an empty string as the token  
+    if (ghesMode) {
+      githubToken = "";
+    }
+    const octokit = new Octokit({ auth: githubToken, baseUrl: githubAPIURL, request: { fetch: fetch}, log: {
+      debug: core.debug,
+      info: core.info,
+      warn: core.warning,
+      error: core.error
+    }, });
+
     const owner = "microsoft";
     const repo = "component-detection";
+    core.debug("Attempting to download latest release from " + githubAPIURL);
 
-    const latestRelease = await octokit.rest.repos.getLatestRelease({
-      owner, repo
-    });
+    try { 
+      const latestRelease = await octokit.request("GET /repos/{owner}/{repo}/releases/latest", {owner, repo});
 
     var downloadURL: string = "";
     const assetName = process.platform === "win32" ? "component-detection-win-x64.exe" : "component-detection-linux-x64";
@@ -158,6 +173,12 @@ export default class ComponentDetection {
     });
 
     return downloadURL;
+    } catch (error: any) {
+      core.error(error);
+      core.debug(error.message);
+      core.debug(error.stack);
+      throw new Error("Failed to download latest release"); 
+    }
   }
 }
 
