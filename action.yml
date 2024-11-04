@@ -22,7 +22,7 @@ inputs:
     description: 'A comma separated list with the identifiers of the specific detectors to be used. This is meant to be used for testing purposes only.'
     required: false
 runs:
-  using: 'node16'
+  using: 'node20'
   main: 'dist/index.js'
 branding:
   icon: 'upload-cloud'
