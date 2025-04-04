@@ -21,6 +21,10 @@ inputs:
   detectorsFilter: 
     description: 'A comma separated list with the identifiers of the specific detectors to be used. This is meant to be used for testing purposes only.'
     required: false
+  correlator:
+    description: 'An optional identifier to distinguish between multiple dependency snapshots of the same type.'
+    type: string
+    required: false
 runs:
   using: 'node16'
   main: 'dist/index.js'

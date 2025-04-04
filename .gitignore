@@ -68,3 +68,6 @@ typings/
 
 # Output from scanning 
 output.json
+
+# Component Detection binary downloaded by tests
+component-detection

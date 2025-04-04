@@ -40403,14 +40403,16 @@ const github = __importStar(__nccwpck_require__(5438));
 const dependency_submission_toolkit_1 = __nccwpck_require__(3415);
 const componentDetection_1 = __importDefault(__nccwpck_require__(4878));
 function run() {
+    var _a;
     return __awaiter(this, void 0, void 0, function* () {
         let manifests = yield componentDetection_1.default.scanAndGetManifests(core.getInput('filePath'));
+        const correlatorInput = ((_a = core.getInput('correlator')) === null || _a === void 0 ? void 0 : _a.trim()) || github.context.job;
         let snapshot = new dependency_submission_toolkit_1.Snapshot({
             name: "Component Detection",
             version: "0.0.1",
             url: "https://github.com/advanced-security/component-detection-dependency-submission-action",
         }, github.context, {
-            correlator: `${github.context.job}`,
+            correlator: correlatorInput,
             id: github.context.runId.toString()
         });
         core.debug(`Manifests: ${manifests === null || manifests === void 0 ? void 0 : manifests.length}`);

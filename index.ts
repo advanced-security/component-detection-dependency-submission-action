@@ -14,6 +14,7 @@ import ComponentDetection from './componentDetection';
 
 async function run() {
   let manifests = await ComponentDetection.scanAndGetManifests(core.getInput('filePath'));
+  const correlatorInput = core.getInput('correlator')?.trim() || github.context.job;
   
   let snapshot = new Snapshot({
       name: "Component Detection",
@@ -22,7 +23,7 @@ async function run() {
   }, 
   github.context,
   {
-    correlator:`${github.context.job}`,
+    correlator: correlatorInput,
     id: github.context.runId.toString()
   });
 
