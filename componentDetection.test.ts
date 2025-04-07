@@ -10,7 +10,7 @@ test("Runs CLI", async () => {
   await ComponentDetection.downloadLatestRelease();
   await ComponentDetection.runComponentDetection("./test");
   expect(fs.existsSync(ComponentDetection.outputPath));
-}, 6000);
+}, 10000);
 
 test("Parses CLI output", async () => {
   await ComponentDetection.downloadLatestRelease();
