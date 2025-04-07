@@ -121,21 +121,22 @@ export default class ComponentDetection {
   }
 
   public static makePackageUrl(packageUrlJson: any): string {
-    var packageUrl = `${packageUrlJson.Scheme}:${packageUrlJson.Type}/`;
+    var typeWithSlash = packageUrlJson.Type.startsWith('/') ? packageUrlJson.Type : '/' + packageUrlJson.Type;
+    var packageUrl = `${packageUrlJson.Scheme}:${typeWithSlash}/`;
     if (packageUrlJson.Namespace) {
-      packageUrl += `${packageUrlJson.Namespace.replaceAll("@", "%40")}/`;
+        packageUrl += `${packageUrlJson.Namespace.replaceAll("@", "%40")}/`;
     }
     packageUrl += `${packageUrlJson.Name.replaceAll("@", "%40")}`;
     if (packageUrlJson.Version) {
-      packageUrl += `@${packageUrlJson.Version}`;
+        packageUrl += `@${packageUrlJson.Version}`;
     }
     if (typeof packageUrlJson.Qualifiers === "object"
-      && packageUrlJson.Qualifiers !== null
-      && Object.keys(packageUrlJson.Qualifiers).length > 0) {
-      const qualifierString = Object.entries(packageUrlJson.Qualifiers)
-        .map(([key, value]) => `${key}=${value}`)
-        .join("&");
-      packageUrl += `?${qualifierString}`;
+        && packageUrlJson.Qualifiers !== null
+        && Object.keys(packageUrlJson.Qualifiers).length > 0) {
+        const qualifierString = Object.entries(packageUrlJson.Qualifiers)
+            .map(([key, value]) => `${key}=${value}`)
+            .join("&");
+        packageUrl += `?${qualifierString}`;
     }
     return packageUrl;
   }
