@@ -75,14 +75,13 @@ export default class ComponentDetection {
 
     var json: any = JSON.parse(results);
     json.componentsFound.forEach(async (component: any) => {
-      // Add debug log to show components with missing packageUrl
+      // Skip components without packageUrl
       if (!component.component.packageUrl) {
-        core.debug(`Component detected without packageUrl: ${JSON.stringify({
+        core.debug(`Skipping component detected without packageUrl: ${JSON.stringify({
           id: component.component.id,
           name: component.component.name || 'unnamed',
           type: component.component.type || 'unknown'
         }, null, 2)}`);
-        // Skip components without packageUrl
         return;
       }
 
