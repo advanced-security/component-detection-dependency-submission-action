@@ -36107,8 +36107,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const github = __importStar(__nccwpck_require__(3228));
 const core = __importStar(__nccwpck_require__(7484));
-const octokit_1 = __nccwpck_require__(7943);
-const dependency_submission_toolkit_1 = __nccwpck_require__(3323);
 const cross_fetch_1 = __importDefault(__nccwpck_require__(3304));
 const fs_1 = __importDefault(__nccwpck_require__(9896));
 const exec = __importStar(__nccwpck_require__(5236));
@@ -36129,15 +36127,20 @@ class ComponentDetection {
             try {
                 core.debug(`Downloading latest release for ${process.platform}`);
                 const downloadURL = yield this.getLatestReleaseURL();
+                core.info(`Download URL: ${downloadURL}`);
                 const blob = yield (yield (0, cross_fetch_1.default)(new URL(downloadURL))).blob();
                 const arrayBuffer = yield blob.arrayBuffer();
                 const buffer = Buffer.from(arrayBuffer);
                 // Write the blob to a file
                 core.debug(`Writing binary to file ${this.componentDetectionPath}`);
                 yield fs_1.default.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
+                core.info(`Binary written to ${this.componentDetectionPath}`);
+                core.info(`File exists: ${fs_1.default.existsSync(this.componentDetectionPath)}`);
+                core.info(`File permissions: ${fs_1.default.statSync(this.componentDetectionPath).mode.toString(8)}`);
             }
             catch (error) {
                 core.error(error);
+                core.info(`Download or write failed: ${error.message}`);
             }
         });
     }
@@ -36145,11 +36148,15 @@ class ComponentDetection {
     static runComponentDetection(path) {
         return __awaiter(this, void 0, void 0, function* () {
             core.info("Running component-detection");
+            core.info(`CLI path: ${this.componentDetectionPath}`);
+            core.info(`Output path: ${this.outputPath}`);
             try {
                 yield exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`);
+                core.info(`CLI run complete. Output exists: ${fs_1.default.existsSync(this.outputPath)}`);
             }
             catch (error) {
                 core.error(error);
+                core.info(`CLI run failed: ${error.message}`);
             }
         });
     }
@@ -36164,8 +36171,25 @@ class ComponentDetection {
     static getManifestsFromResults() {
         return __awaiter(this, void 0, void 0, function* () {
             core.info("Getting manifests from results");
+            // Dynamically import toolkit
+            const toolkit = yield Promise.resolve().then(() => __importStar(__nccwpck_require__(3323)));
+            const PackageCache = toolkit.PackageCache;
+            const Manifest = toolkit.Manifest;
+            const Package = toolkit.Package;
+            // Define a dynamic class extending Package
+            class ComponentDetectionPackage extends Package {
+                constructor(packageUrl, id, isDevelopmentDependency, topLevelReferrers, locationsFoundAt, containerDetailIds, containerLayerIds) {
+                    super(packageUrl);
+                    this.id = id;
+                    this.isDevelopmentDependency = isDevelopmentDependency;
+                    this.topLevelReferrers = topLevelReferrers;
+                    this.locationsFoundAt = locationsFoundAt;
+                    this.containerDetailIds = containerDetailIds;
+                    this.containerLayerIds = containerLayerIds;
+                }
+            }
             // Parse the result file and add the packages to the package cache
-            const packageCache = new dependency_submission_toolkit_1.PackageCache();
+            const packageCache = new PackageCache();
             const packages = [];
             const results = yield fs_1.default.readFileSync(this.outputPath, 'utf8');
             var json = JSON.parse(results);
@@ -36194,7 +36218,7 @@ class ComponentDetection {
                 pkg.locationsFoundAt.forEach((location) => __awaiter(this, void 0, void 0, function* () {
                     var _a, _b;
                     if (!manifests.find((manifest) => manifest.name == location)) {
-                        const manifest = new dependency_submission_toolkit_1.Manifest(location, location);
+                        const manifest = new Manifest(location, location);
                         manifests.push(manifest);
                     }
                     if (pkg.topLevelReferrers.length == 0) {
@@ -36239,7 +36263,9 @@ class ComponentDetection {
             if (ghesMode) {
                 githubToken = "";
             }
-            const octokit = new octokit_1.Octokit({ auth: githubToken, baseUrl: githubAPIURL, request: { fetch: cross_fetch_1.default }, log: {
+            // Dynamically import octokit
+            const { Octokit } = yield Promise.resolve().then(() => __importStar(__nccwpck_require__(7943)));
+            const octokit = new Octokit({ auth: githubToken, baseUrl: githubAPIURL, request: { fetch: cross_fetch_1.default }, log: {
                     debug: core.debug,
                     info: core.info,
                     warn: core.warning,
@@ -36271,17 +36297,6 @@ class ComponentDetection {
 exports["default"] = ComponentDetection;
 ComponentDetection.componentDetectionPath = process.platform === "win32" ? './component-detection.exe' : './component-detection';
 ComponentDetection.outputPath = './output.json';
-class ComponentDetectionPackage extends dependency_submission_toolkit_1.Package {
-    constructor(packageUrl, id, isDevelopmentDependency, topLevelReferrers, locationsFoundAt, containerDetailIds, containerLayerIds) {
-        super(packageUrl);
-        this.id = id;
-        this.isDevelopmentDependency = isDevelopmentDependency;
-        this.topLevelReferrers = topLevelReferrers;
-        this.locationsFoundAt = locationsFoundAt;
-        this.containerDetailIds = containerDetailIds;
-        this.containerLayerIds = containerLayerIds;
-    }
-}
 
 
 /***/ }),
