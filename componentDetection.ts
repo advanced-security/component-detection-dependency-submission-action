@@ -82,9 +82,17 @@ export default class ComponentDetection {
           name: component.component.name || 'unnamed',
           type: component.component.type || 'unknown'
         }, null, 2)}`);
+        // Skip components without packageUrl
+        return;
       }
 
       const packageUrl = ComponentDetection.makePackageUrl(component.component.packageUrl);
+      
+      // Skip if the packageUrl is empty (indicates an invalid or missing packageUrl)
+      if (!packageUrl) {
+        core.debug(`Skipping component with invalid packageUrl: ${component.component.id}`);
+        return;
+      }
 
       if (!packageCache.hasPackage(packageUrl)) {
         const pkg = new ComponentDetectionPackage(packageUrl, component.component.id,
@@ -98,9 +106,27 @@ export default class ComponentDetection {
     core.debug("Sorting out transitive dependencies");
     packages.forEach(async (pkg: ComponentDetectionPackage) => {
       pkg.topLevelReferrers.forEach(async (referrer: any) => {
-        const referrerPackage = packageCache.lookupPackage(ComponentDetection.makePackageUrl(referrer.packageUrl));
-        if (referrerPackage) {
-          referrerPackage.dependsOn(pkg);
+        // Skip if referrer doesn't have a valid packageUrl
+        if (!referrer.packageUrl) {
+          core.debug(`Skipping referrer without packageUrl for component: ${pkg.id}`);
+          return;
+        }
+        
+        const referrerUrl = ComponentDetection.makePackageUrl(referrer.packageUrl);
+        
+        // Skip if the generated packageUrl is empty
+        if (!referrerUrl) {
+          core.debug(`Skipping referrer with invalid packageUrl for component: ${pkg.id}`);
+          return;
+        }
+        
+        try {
+          const referrerPackage = packageCache.lookupPackage(referrerUrl);
+          if (referrerPackage) {
+            referrerPackage.dependsOn(pkg);
+          }
+        } catch (error) {
+          core.debug(`Error looking up referrer package: ${error}`);
         }
       });
     });
