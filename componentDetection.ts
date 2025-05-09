@@ -75,6 +75,15 @@ export default class ComponentDetection {
 
     var json: any = JSON.parse(results);
     json.componentsFound.forEach(async (component: any) => {
+      // Add debug log to show components with missing packageUrl
+      if (!component.component.packageUrl) {
+        core.debug(`Component detected without packageUrl: ${JSON.stringify({
+          id: component.component.id,
+          name: component.component.name || 'unnamed',
+          type: component.component.type || 'unknown'
+        }, null, 2)}`);
+      }
+
       const packageUrl = ComponentDetection.makePackageUrl(component.component.packageUrl);
 
       if (!packageCache.hasPackage(packageUrl)) {
@@ -121,23 +130,35 @@ export default class ComponentDetection {
   }
 
   public static makePackageUrl(packageUrlJson: any): string {
-    var packageUrl = `${packageUrlJson.Scheme}:${packageUrlJson.Type}/`;
-    if (packageUrlJson.Namespace) {
-      packageUrl += `${packageUrlJson.Namespace.replaceAll("@", "%40")}/`;
+    // Handle case when packageUrlJson is null or undefined
+    if (!packageUrlJson) {
+      core.debug(`Warning: Received null or undefined packageUrlJson. Unable to create package URL.`);
+      return ""; // Return a blank string for unknown packages
     }
-    packageUrl += `${packageUrlJson.Name.replaceAll("@", "%40")}`;
-    if (packageUrlJson.Version) {
-      packageUrl += `@${packageUrlJson.Version}`;
+
+    try {
+      var packageUrl = `${packageUrlJson.Scheme}:${packageUrlJson.Type}/`;
+      if (packageUrlJson.Namespace) {
+        packageUrl += `${packageUrlJson.Namespace.replaceAll("@", "%40")}/`;
+      }
+      packageUrl += `${packageUrlJson.Name.replaceAll("@", "%40")}`;
+      if (packageUrlJson.Version) {
+        packageUrl += `@${packageUrlJson.Version}`;
+      }
+      if (typeof packageUrlJson.Qualifiers === "object"
+        && packageUrlJson.Qualifiers !== null
+        && Object.keys(packageUrlJson.Qualifiers).length > 0) {
+        const qualifierString = Object.entries(packageUrlJson.Qualifiers)
+          .map(([key, value]) => `${key}=${value}`)
+          .join("&");
+        packageUrl += `?${qualifierString}`;
+      }
+      return packageUrl;
+    } catch (error) {
+      core.debug(`Error creating package URL from packageUrlJson: ${JSON.stringify(packageUrlJson, null, 2)}`);
+      core.debug(`Error details: ${error}`);
+      return ""; // Return a blank string for error cases
     }
-    if (typeof packageUrlJson.Qualifiers === "object"
-      && packageUrlJson.Qualifiers !== null
-      && Object.keys(packageUrlJson.Qualifiers).length > 0) {
-      const qualifierString = Object.entries(packageUrlJson.Qualifiers)
-        .map(([key, value]) => `${key}=${value}`)
-        .join("&");
-      packageUrl += `?${qualifierString}`;
-    }
-    return packageUrl;
   }
 
   private static async getLatestReleaseURL(): Promise<string> {
