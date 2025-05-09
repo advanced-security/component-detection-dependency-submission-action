@@ -36170,14 +36170,13 @@ class ComponentDetection {
             const results = yield fs_1.default.readFileSync(this.outputPath, 'utf8');
             var json = JSON.parse(results);
             json.componentsFound.forEach((component) => __awaiter(this, void 0, void 0, function* () {
-                // Add debug log to show components with missing packageUrl
+                // Skip components without packageUrl
                 if (!component.component.packageUrl) {
-                    core.debug(`Component detected without packageUrl: ${JSON.stringify({
+                    core.debug(`Skipping component detected without packageUrl: ${JSON.stringify({
                         id: component.component.id,
                         name: component.component.name || 'unnamed',
                         type: component.component.type || 'unknown'
                     }, null, 2)}`);
-                    // Skip components without packageUrl
                     return;
                 }
                 const packageUrl = ComponentDetection.makePackageUrl(component.component.packageUrl);
