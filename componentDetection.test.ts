@@ -13,8 +13,48 @@ test("Runs CLI", async () => {
 }, 10000);
 
 test("Parses CLI output", async () => {
-  await ComponentDetection.downloadLatestRelease();
-  await ComponentDetection.runComponentDetection("./test");
+  // Mock the CLI output file
+  const mockOutput = JSON.stringify({
+    componentsFound: [
+      {
+        component: {
+          packageUrl: {
+            Scheme: "pkg",
+            Type: "npm",
+            Namespace: "github",
+            Name: "component-detection-action",
+            Version: "0.0.2",
+            Qualifiers: { arch: "amd64", os: "linux" }
+          },
+          id: "1"
+        },
+        isDevelopmentDependency: false,
+        topLevelReferrers: [],
+        locationsFoundAt: ["/test/package.json"],
+        containerDetailIds: [],
+        containerLayerIds: []
+      },
+      {
+        component: {
+          packageUrl: {
+            Scheme: "pkg",
+            Type: "npm",
+            Namespace: "github",
+            Name: "component-detection-action",
+            Version: "0.0.3",
+            Qualifiers: { arch: "amd64", os: "linux" }
+          },
+          id: "2"
+        },
+        isDevelopmentDependency: true,
+        topLevelReferrers: [],
+        locationsFoundAt: ["/test/package-lock.json"],
+        containerDetailIds: [],
+        containerLayerIds: []
+      }
+    ]
+  });
+  fs.writeFileSync(ComponentDetection.outputPath, mockOutput, { encoding: 'utf8' });
   var manifests = await ComponentDetection.getManifestsFromResults();
   expect(manifests?.length == 2);
 });
