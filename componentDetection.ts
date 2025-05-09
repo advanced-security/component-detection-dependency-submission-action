@@ -1,14 +1,5 @@
 import * as github from '@actions/github'
 import * as core from '@actions/core'
-import { Octokit, App } from "octokit"
-import {
-  PackageCache,
-  BuildTarget,
-  Package,
-  Snapshot,
-  Manifest,
-  submitSnapshot
-} from '@github/dependency-submission-toolkit'
 import fetch from 'cross-fetch'
 import tar from 'tar'
 import fs from 'fs'
@@ -23,7 +14,7 @@ export default class ComponentDetection {
   public static outputPath = './output.json';
 
   // This is the default entry point for this class. 
-  static async scanAndGetManifests(path: string): Promise<Manifest[] | undefined> {
+  static async scanAndGetManifests(path: string): Promise<any[] | undefined> {
     await this.downloadLatestRelease();
     await this.runComponentDetection(path);
     return await this.getManifestsFromResults();
@@ -33,6 +24,7 @@ export default class ComponentDetection {
     try {
       core.debug(`Downloading latest release for ${process.platform}`);
       const downloadURL = await this.getLatestReleaseURL();
+      core.info(`Download URL: ${downloadURL}`);
       const blob = await (await fetch(new URL(downloadURL))).blob();
       const arrayBuffer = await blob.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
@@ -40,19 +32,26 @@ export default class ComponentDetection {
       // Write the blob to a file
       core.debug(`Writing binary to file ${this.componentDetectionPath}`);
       await fs.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
+      core.info(`Binary written to ${this.componentDetectionPath}`);
+      core.info(`File exists: ${fs.existsSync(this.componentDetectionPath)}`);
+      core.info(`File permissions: ${fs.statSync(this.componentDetectionPath).mode.toString(8)}`);
     } catch (error: any) {
       core.error(error);
+      core.info(`Download or write failed: ${error.message}`);
     }
   }
 
   // Run the component-detection CLI on the path specified
   public static async runComponentDetection(path: string) {
     core.info("Running component-detection");
-
+    core.info(`CLI path: ${this.componentDetectionPath}`);
+    core.info(`Output path: ${this.outputPath}`);
     try {
       await exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`);
+      core.info(`CLI run complete. Output exists: ${fs.existsSync(this.outputPath)}`);
     } catch (error: any) {
       core.error(error);
+      core.info(`CLI run failed: ${error.message}`);
     }
   }
 
@@ -65,11 +64,34 @@ export default class ComponentDetection {
     return parameters;
   }
 
-  public static async getManifestsFromResults(): Promise<Manifest[] | undefined> {
+  public static async getManifestsFromResults(): Promise<any[] | undefined> {
     core.info("Getting manifests from results");
+    // Dynamically import toolkit
+    const toolkit = await import('@github/dependency-submission-toolkit');
+    const PackageCache = toolkit.PackageCache;
+    const Manifest = toolkit.Manifest;
+    const Package = toolkit.Package;
+    // Define a dynamic class extending Package
+    class ComponentDetectionPackage extends Package {
+      id: any;
+      isDevelopmentDependency: any;
+      topLevelReferrers: any;
+      locationsFoundAt: any;
+      containerDetailIds: any;
+      containerLayerIds: any;
+      constructor(packageUrl: string, id: any, isDevelopmentDependency: any, topLevelReferrers: any, locationsFoundAt: any, containerDetailIds: any, containerLayerIds: any) {
+        super(packageUrl);
+        this.id = id;
+        this.isDevelopmentDependency = isDevelopmentDependency;
+        this.topLevelReferrers = topLevelReferrers;
+        this.locationsFoundAt = locationsFoundAt;
+        this.containerDetailIds = containerDetailIds;
+        this.containerLayerIds = containerLayerIds;
+      }
+    }
     // Parse the result file and add the packages to the package cache
     const packageCache = new PackageCache();
-    const packages: Array<ComponentDetectionPackage> = [];
+    const packages: Array<any> = [];
 
     const results = await fs.readFileSync(this.outputPath, 'utf8');
 
@@ -78,8 +100,15 @@ export default class ComponentDetection {
       const packageUrl = ComponentDetection.makePackageUrl(component.component.packageUrl);
 
       if (!packageCache.hasPackage(packageUrl)) {
-        const pkg = new ComponentDetectionPackage(packageUrl, component.component.id,
-          component.isDevelopmentDependency, component.topLevelReferrers, component.locationsFoundAt, component.containerDetailIds, component.containerLayerIds);
+        const pkg = new ComponentDetectionPackage(
+          packageUrl,
+          component.component.id,
+          component.isDevelopmentDependency,
+          component.topLevelReferrers,
+          component.locationsFoundAt,
+          component.containerDetailIds,
+          component.containerLayerIds
+        );
         packageCache.addPackage(pkg);
         packages.push(pkg);
       }
@@ -87,7 +116,7 @@ export default class ComponentDetection {
 
     // Set the transitive dependencies
     core.debug("Sorting out transitive dependencies");
-    packages.forEach(async (pkg: ComponentDetectionPackage) => {
+    packages.forEach(async (pkg: any) => {
       pkg.topLevelReferrers.forEach(async (referrer: any) => {
         const referrerPackage = packageCache.lookupPackage(ComponentDetection.makePackageUrl(referrer.packageUrl));
         if (referrerPackage) {
@@ -97,26 +126,26 @@ export default class ComponentDetection {
     });
 
     // Create manifests
-    const manifests: Array<Manifest> = [];
+    const manifests: Array<any> = [];
 
     // Check the locationsFoundAt for every package and add each as a manifest
-    packages.forEach(async (pkg: ComponentDetectionPackage) => {
+    packages.forEach(async (pkg: any) => {
       pkg.locationsFoundAt.forEach(async (location: any) => {
-        if (!manifests.find((manifest: Manifest) => manifest.name == location)) {
+        if (!manifests.find((manifest: any) => manifest.name == location)) {
           const manifest = new Manifest(location, location);
           manifests.push(manifest);
         }
         if (pkg.topLevelReferrers.length == 0) {
-          manifests.find((manifest: Manifest) => manifest.name == location)?.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
+          manifests.find((manifest: any) => manifest.name == location)?.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
         } else {
-          manifests.find((manifest: Manifest) => manifest.name == location)?.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
+          manifests.find((manifest: any) => manifest.name == location)?.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
         }
       });
     });
     return manifests;
   }
 
-  private static getDependencyScope(pkg: ComponentDetectionPackage) {
+  private static getDependencyScope(pkg: any) {
     return pkg.isDevelopmentDependency ? 'development' : 'runtime'
   }
 
@@ -150,6 +179,8 @@ export default class ComponentDetection {
     if (ghesMode) {
       githubToken = "";
     }
+    // Dynamically import octokit
+    const { Octokit } = await import("octokit");
     const octokit = new Octokit({ auth: githubToken, baseUrl: githubAPIURL, request: { fetch: fetch}, log: {
       debug: core.debug,
       info: core.info,
@@ -179,14 +210,6 @@ export default class ComponentDetection {
       core.debug(error.stack);
       throw new Error("Failed to download latest release"); 
     }
-  }
-}
-
-class ComponentDetectionPackage extends Package {
-
-  constructor(packageUrl: string, public id: string, public isDevelopmentDependency: boolean, public topLevelReferrers: [],
-    public locationsFoundAt: [], public containerDetailIds: [], public containerLayerIds: []) {
-    super(packageUrl);
   }
 }
 
