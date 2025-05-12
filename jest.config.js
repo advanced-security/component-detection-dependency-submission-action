@@ -1,5 +1,3 @@
-import babel from 'babel-jest';
-
 export default {
   testEnvironment: 'node',
   extensionsToTreatAsEsm: ['.ts'],
