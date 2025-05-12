@@ -20,6 +20,27 @@ test("Parses CLI output", async () => {
 });
 
 describe("ComponentDetection.makePackageUrl", () => {
+  test("returns a empty valid package url from null object", () => {
+    const packageUrl = ComponentDetection.makePackageUrl(null);
+    expect(packageUrl).toBe("");
+  });
+});
+
+describe("ComponentDetection.makePackageUrl", () => {
+  test("returns a empty valid package url from null object properties", () => {
+    const packageUrl = ComponentDetection.makePackageUrl({
+      Scheme: null,
+      Type: null,
+      Namespace: null,
+      Name: null,
+      Version: null,
+      Qualifiers: null
+    });
+    expect(packageUrl).toBe("");
+  });
+});
+
+describe("ComponentDetection.makePackageUrl", () => {
   test("returns a valid package url from saturated object", () => {
     const packageUrl = ComponentDetection.makePackageUrl({
       Scheme: "pkg",
