@@ -20,24 +20,6 @@ test("Parses CLI output", async () => {
 });
 
 describe("ComponentDetection.makePackageUrl", () => {
-  test("returns an empty string when packageUrlJson is null", () => {
-    const packageUrl = ComponentDetection.makePackageUrl(null);
-    expect(packageUrl).toBe("");
-  });
-  test("returns an empty string for null packageUrlJson properties", () => {
-    const packageUrl = ComponentDetection.makePackageUrl({
-      Scheme: null,
-      Type: null,
-      Namespace: null,
-      Name: null,
-      Version: null,
-      Qualifiers: null
-    });
-    expect(packageUrl).toBe("");
-  });
-});
-
-describe("ComponentDetection.makePackageUrl", () => {
   test("returns a valid package url from saturated object", () => {
     const packageUrl = ComponentDetection.makePackageUrl({
       Scheme: "pkg",
@@ -67,5 +49,22 @@ describe("ComponentDetection.makePackageUrl", () => {
     expect(packageUrl).toBe(
       "pkg:npm/github/component-detection-action@0.0.2"
     );
+  });
+
+  test("returns an empty string when packageUrlJson is null", () => {
+    const packageUrl = ComponentDetection.makePackageUrl(null);
+    expect(packageUrl).toBe("");
+  });
+
+  test("returns an empty string for null packageUrlJson properties", () => {
+    const packageUrl = ComponentDetection.makePackageUrl({
+      Scheme: null,
+      Type: null,
+      Namespace: null,
+      Name: null,
+      Version: null,
+      Qualifiers: null
+    });
+    expect(packageUrl).toBe("");
   });
 });
