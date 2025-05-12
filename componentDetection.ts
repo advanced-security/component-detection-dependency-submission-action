@@ -156,7 +156,13 @@ export default class ComponentDetection {
 
   public static makePackageUrl(packageUrlJson: any): string {
     // Handle case when packageUrlJson is null or undefined
-    if (!packageUrlJson) {
+    if (
+      !packageUrlJson ||
+      typeof packageUrlJson.Scheme !== 'string' ||
+      typeof packageUrlJson.Type !== 'string' ||
+      !packageUrlJson.Scheme ||
+      !packageUrlJson.Type
+    ) {
       core.debug(`Warning: Received null or undefined packageUrlJson. Unable to create package URL.`);
       return ""; // Return a blank string for unknown packages
     }
