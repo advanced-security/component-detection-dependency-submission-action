@@ -20,7 +20,7 @@ test("Parses CLI output", async () => {
 });
 
 describe("ComponentDetection.makePackageUrl", () => {
-  test("returns a empty valid package url from null object", () => {
+  test("returns an empty string when packageUrlJson is null", () => {
     const packageUrl = ComponentDetection.makePackageUrl(null);
     expect(packageUrl).toBe("");
   });
