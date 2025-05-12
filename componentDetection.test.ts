@@ -24,9 +24,6 @@ describe("ComponentDetection.makePackageUrl", () => {
     const packageUrl = ComponentDetection.makePackageUrl(null);
     expect(packageUrl).toBe("");
   });
-});
-
-describe("ComponentDetection.makePackageUrl", () => {
   test("returns a empty valid package url from null object properties", () => {
     const packageUrl = ComponentDetection.makePackageUrl({
       Scheme: null,
