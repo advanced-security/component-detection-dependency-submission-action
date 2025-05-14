@@ -50,4 +50,21 @@ describe("ComponentDetection.makePackageUrl", () => {
       "pkg:npm/github/component-detection-action@0.0.2"
     );
   });
+
+  test("returns an empty string when packageUrlJson is null", () => {
+    const packageUrl = ComponentDetection.makePackageUrl(null);
+    expect(packageUrl).toBe("");
+  });
+
+  test("returns an empty string for null packageUrlJson properties", () => {
+    const packageUrl = ComponentDetection.makePackageUrl({
+      Scheme: null,
+      Type: null,
+      Namespace: null,
+      Name: null,
+      Version: null,
+      Qualifiers: null
+    });
+    expect(packageUrl).toBe("");
+  });
 });

@@ -75,7 +75,23 @@ export default class ComponentDetection {
 
     var json: any = JSON.parse(results);
     json.componentsFound.forEach(async (component: any) => {
+      // Skip components without packageUrl
+      if (!component.component.packageUrl) {
+        core.debug(`Skipping component detected without packageUrl: ${JSON.stringify({
+          id: component.component.id,
+          name: component.component.name || 'unnamed',
+          type: component.component.type || 'unknown'
+        }, null, 2)}`);
+        return;
+      }
+
       const packageUrl = ComponentDetection.makePackageUrl(component.component.packageUrl);
+      
+      // Skip if the packageUrl is empty (indicates an invalid or missing packageUrl)
+      if (!packageUrl) {
+        core.debug(`Skipping component with invalid packageUrl: ${component.component.id}`);
+        return;
+      }
 
       if (!packageCache.hasPackage(packageUrl)) {
         const pkg = new ComponentDetectionPackage(packageUrl, component.component.id,
@@ -89,9 +105,27 @@ export default class ComponentDetection {
     core.debug("Sorting out transitive dependencies");
     packages.forEach(async (pkg: ComponentDetectionPackage) => {
       pkg.topLevelReferrers.forEach(async (referrer: any) => {
-        const referrerPackage = packageCache.lookupPackage(ComponentDetection.makePackageUrl(referrer.packageUrl));
-        if (referrerPackage) {
-          referrerPackage.dependsOn(pkg);
+        // Skip if referrer doesn't have a valid packageUrl
+        if (!referrer.packageUrl) {
+          core.debug(`Skipping referrer without packageUrl for component: ${pkg.id}`);
+          return;
+        }
+        
+        const referrerUrl = ComponentDetection.makePackageUrl(referrer.packageUrl);
+        
+        // Skip if the generated packageUrl is empty
+        if (!referrerUrl) {
+          core.debug(`Skipping referrer with invalid packageUrl for component: ${pkg.id}`);
+          return;
+        }
+        
+        try {
+          const referrerPackage = packageCache.lookupPackage(referrerUrl);
+          if (referrerPackage) {
+            referrerPackage.dependsOn(pkg);
+          }
+        } catch (error) {
+          core.debug(`Error looking up referrer package: ${error}`);
         }
       });
     });
@@ -121,23 +155,41 @@ export default class ComponentDetection {
   }
 
   public static makePackageUrl(packageUrlJson: any): string {
-    var packageUrl = `${packageUrlJson.Scheme}:${packageUrlJson.Type}/`;
-    if (packageUrlJson.Namespace) {
-      packageUrl += `${packageUrlJson.Namespace.replaceAll("@", "%40")}/`;
+    // Handle case when packageUrlJson is null or undefined
+    if (
+      !packageUrlJson ||
+      typeof packageUrlJson.Scheme !== 'string' ||
+      typeof packageUrlJson.Type !== 'string' ||
+      !packageUrlJson.Scheme ||
+      !packageUrlJson.Type
+    ) {
+      core.debug(`Warning: Received null or undefined packageUrlJson. Unable to create package URL.`);
+      return ""; // Return a blank string for unknown packages
     }
-    packageUrl += `${packageUrlJson.Name.replaceAll("@", "%40")}`;
-    if (packageUrlJson.Version) {
-      packageUrl += `@${packageUrlJson.Version}`;
+
+    try {
+      var packageUrl = `${packageUrlJson.Scheme}:${packageUrlJson.Type}/`;
+      if (packageUrlJson.Namespace) {
+        packageUrl += `${packageUrlJson.Namespace.replaceAll("@", "%40")}/`;
+      }
+      packageUrl += `${packageUrlJson.Name.replaceAll("@", "%40")}`;
+      if (packageUrlJson.Version) {
+        packageUrl += `@${packageUrlJson.Version}`;
+      }
+      if (typeof packageUrlJson.Qualifiers === "object"
+        && packageUrlJson.Qualifiers !== null
+        && Object.keys(packageUrlJson.Qualifiers).length > 0) {
+        const qualifierString = Object.entries(packageUrlJson.Qualifiers)
+          .map(([key, value]) => `${key}=${value}`)
+          .join("&");
+        packageUrl += `?${qualifierString}`;
+      }
+      return packageUrl;
+    } catch (error) {
+      core.debug(`Error creating package URL from packageUrlJson: ${JSON.stringify(packageUrlJson, null, 2)}`);
+      core.debug(`Error details: ${error}`);
+      return ""; // Return a blank string for error cases
     }
-    if (typeof packageUrlJson.Qualifiers === "object"
-      && packageUrlJson.Qualifiers !== null
-      && Object.keys(packageUrlJson.Qualifiers).length > 0) {
-      const qualifierString = Object.entries(packageUrlJson.Qualifiers)
-        .map(([key, value]) => `${key}=${value}`)
-        .join("&");
-      packageUrl += `?${qualifierString}`;
-    }
-    return packageUrl;
   }
 
   private static async getLatestReleaseURL(): Promise<string> {
