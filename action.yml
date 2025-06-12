@@ -5,7 +5,7 @@ inputs:
     description: "GitHub Personal Access Token (PAT). Defaults to PAT provided by Actions runner."
     required: false
     default: ${{ github.token }}
-  filePath:  
+  filePath:
     description: 'The path to the directory containing the environment files to upload. Defaults to Actions working directory.'
     required: false
     default: '.'
@@ -18,12 +18,14 @@ inputs:
   dockerImagesToScan:
     description: 'Comma separated list of docker image names or hashes to execute container scanning on, ex: ubuntu:16.04,56bab49eef2ef07505f6a1b0d5bd3a601dfc3c76ad4460f24c91d6fa298369ab'
     required: false
-  detectorsFilter: 
+  detectorsFilter:
     description: 'A comma separated list with the identifiers of the specific detectors to be used. This is meant to be used for testing purposes only.'
+    required: false
+  detectorsCategories:
+    description: 'A comma separated list with the categories of components that are going to be scanned. The detectors that are going to run are the ones that belongs to the categories. The possible values are: Npm, NuGet, Maven, RubyGems, Cargo, Pip, GoMod, CocoaPods, Linux.'
     required: false
   correlator:
     description: 'An optional identifier to distinguish between multiple dependency snapshots of the same type.'
-    type: string
     required: false
 runs:
   using: 'node20'
