@@ -22,7 +22,7 @@ export default class ComponentDetection {
   public static componentDetectionPath = process.platform === "win32" ? './component-detection.exe' : './component-detection';
   public static outputPath = './output.json';
 
-  // This is the default entry point for this class. 
+  // This is the default entry point for this class.
   static async scanAndGetManifests(path: string): Promise<Manifest[] | undefined> {
     await this.downloadLatestRelease();
     await this.runComponentDetection(path);
@@ -61,6 +61,7 @@ export default class ComponentDetection {
     parameters += (core.getInput('directoryExclusionList')) ? ` --DirectoryExclusionList ${core.getInput('directoryExclusionList')}` : "";
     parameters += (core.getInput('detectorArgs')) ? ` --DetectorArgs ${core.getInput('detectorArgs')}` : "";
     parameters += (core.getInput('detectorsFilter')) ? ` --DetectorsFilter ${core.getInput('detectorsFilter')}` : "";
+    parameters += (core.getInput('detectorsCategories')) ? ` --DetectorCategories ${core.getInput('detectorsCategories')}` : "";
     parameters += (core.getInput('dockerImagesToScan')) ? ` --DockerImagesToScan ${core.getInput('dockerImagesToScan')}` : "";
     return parameters;
   }
@@ -86,7 +87,7 @@ export default class ComponentDetection {
       }
 
       const packageUrl = ComponentDetection.makePackageUrl(component.component.packageUrl);
-      
+
       // Skip if the packageUrl is empty (indicates an invalid or missing packageUrl)
       if (!packageUrl) {
         core.debug(`Skipping component with invalid packageUrl: ${component.component.id}`);
@@ -110,15 +111,15 @@ export default class ComponentDetection {
           core.debug(`Skipping referrer without packageUrl for component: ${pkg.id}`);
           return;
         }
-        
+
         const referrerUrl = ComponentDetection.makePackageUrl(referrer.packageUrl);
-        
+
         // Skip if the generated packageUrl is empty
         if (!referrerUrl) {
           core.debug(`Skipping referrer with invalid packageUrl for component: ${pkg.id}`);
           return;
         }
-        
+
         try {
           const referrerPackage = packageCache.lookupPackage(referrerUrl);
           if (referrerPackage) {
@@ -195,10 +196,10 @@ export default class ComponentDetection {
   private static async getLatestReleaseURL(): Promise<string> {
     let githubToken = core.getInput('token') || process.env.GITHUB_TOKEN || "";
 
-    const githubAPIURL = 'https://api.github.com' 
+    const githubAPIURL = 'https://api.github.com'
 
     let ghesMode = github.context.apiUrl != githubAPIURL;
-    // If the we're running in GHES, then use an empty string as the token  
+    // If the we're running in GHES, then use an empty string as the token
     if (ghesMode) {
       githubToken = "";
     }
@@ -213,7 +214,7 @@ export default class ComponentDetection {
     const repo = "component-detection";
     core.debug("Attempting to download latest release from " + githubAPIURL);
 
-    try { 
+    try {
       const latestRelease = await octokit.request("GET /repos/{owner}/{repo}/releases/latest", {owner, repo});
 
     var downloadURL: string = "";
@@ -229,7 +230,7 @@ export default class ComponentDetection {
       core.error(error);
       core.debug(error.message);
       core.debug(error.stack);
-      throw new Error("Failed to download latest release"); 
+      throw new Error("Failed to download latest release");
     }
   }
 }
