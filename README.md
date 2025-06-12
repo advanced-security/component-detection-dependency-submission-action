@@ -34,7 +34,7 @@ directoryExclusionList | Filters out specific directories following a minimatch 
 detectorArgs | Comma separated list of properties that can affect the detectors execution, like EnableIfDefaultOff that allows a specific detector that is in beta to run, the format for this property is DetectorId=EnableIfDefaultOff, for example Pip=EnableIfDefaultOff. | `Pip=EnableIfDefaultOff`
 dockerImagesToScan |Comma separated list of docker image names or hashes to execute container scanning on |  ubuntu:16.04,56bab49eef2ef07505f6a1b0d5bd3a601dfc3c76ad4460f24c91d6fa298369ab |
 detectorsFilter | A comma separated list with the identifiers of the specific detectors to be used. | `Pip, RustCrateDetector`
-detectorsCategories | A comma separated list with the categories of components that are going to be scanned. The detectors that are going to run are the ones that belongs to the categories. The possible values are: Npm, NuGet, Maven, RubyGems, Cargo, Pip, GoMod, CocoaPods, Linux. | `Npm,Maven,Pip`
+detectorsCategories | A comma separated list with the categories of components that are going to be scanned. The detectors that are going to run are the ones that belongs to the categories. | `NuGet,Npm`
 correlator | An optional identifier to distinguish between multiple dependency snapshots of the same type. Defaults to the [job_id](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_id) of the current job | `csharp-backend`
 
 For more information: https://github.com/microsoft/component-detection
