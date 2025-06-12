@@ -36004,7 +36004,7 @@ const exec = __importStar(__nccwpck_require__(5236));
 const dotenv_1 = __importDefault(__nccwpck_require__(8889));
 dotenv_1.default.config();
 class ComponentDetection {
-    // This is the default entry point for this class. 
+    // This is the default entry point for this class.
     static scanAndGetManifests(path) {
         return __awaiter(this, void 0, void 0, function* () {
             yield this.downloadLatestRelease();
@@ -36047,6 +36047,7 @@ class ComponentDetection {
         parameters += (core.getInput('directoryExclusionList')) ? ` --DirectoryExclusionList ${core.getInput('directoryExclusionList')}` : "";
         parameters += (core.getInput('detectorArgs')) ? ` --DetectorArgs ${core.getInput('detectorArgs')}` : "";
         parameters += (core.getInput('detectorsFilter')) ? ` --DetectorsFilter ${core.getInput('detectorsFilter')}` : "";
+        parameters += (core.getInput('detectorsCategories')) ? ` --DetectorCategories ${core.getInput('detectorsCategories')}` : "";
         parameters += (core.getInput('dockerImagesToScan')) ? ` --DockerImagesToScan ${core.getInput('dockerImagesToScan')}` : "";
         return parameters;
     }
@@ -36170,7 +36171,7 @@ class ComponentDetection {
             let githubToken = core.getInput('token') || process.env.GITHUB_TOKEN || "";
             const githubAPIURL = 'https://api.github.com';
             let ghesMode = github.context.apiUrl != githubAPIURL;
-            // If the we're running in GHES, then use an empty string as the token  
+            // If the we're running in GHES, then use an empty string as the token
             if (ghesMode) {
                 githubToken = "";
             }
