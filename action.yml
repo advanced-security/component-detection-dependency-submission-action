@@ -27,6 +27,21 @@ inputs:
   correlator:
     description: 'An optional identifier to distinguish between multiple dependency snapshots of the same type.'
     required: false
+  detector-name:
+    description: 'The name of the detector. If provided, detector-version and detector-url must also be provided.'
+    required: false
+  detector-version:
+    description: 'The version of the detector. If provided, detector-name and detector-url must also be provided.'
+    required: false
+  detector-url:
+    description: 'The URL of the detector. If provided, detector-name and detector-version must also be provided.'
+    required: false
+  snapshot-sha:
+    description: 'The SHA of the commit to associate with the snapshot. If provided, snapshot-ref must also be provided.'
+    required: false
+  snapshot-ref:
+    description: 'The Git reference to associate with the snapshot. If provided, snapshot-sha must also be provided.'
+    required: false
 runs:
   using: 'node20'
   main: 'dist/index.js'
