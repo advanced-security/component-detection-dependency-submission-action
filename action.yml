@@ -36,6 +36,12 @@ inputs:
   detector-url:
     description: 'The URL of the detector. If provided, detector-name and detector-version must also be provided.'
     required: false
+  snapshot-sha:
+    description: 'The SHA of the commit to associate with the snapshot. If provided, snapshot-ref must also be provided.'
+    required: false
+  snapshot-ref:
+    description: 'The Git reference to associate with the snapshot. If provided, snapshot-sha must also be provided.'
+    required: false
 runs:
   using: 'node20'
   main: 'dist/index.js'

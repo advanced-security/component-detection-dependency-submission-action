@@ -60,6 +60,18 @@ async function run() {
     snapshot.addManifest(manifest);
   });
 
+  // Override snapshot ref and sha if provided
+  const snapshotSha = core.getInput("snapshot-sha")?.trim();
+  const snapshotRef = core.getInput("snapshot-ref")?.trim();
+
+  if (snapshotSha) {
+    snapshot.sha = snapshotSha;
+  }
+
+  if (snapshotRef) {
+    snapshot.ref = snapshotRef;
+  }
+
   submitSnapshot(snapshot);
 }
 
