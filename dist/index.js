@@ -36267,23 +36267,51 @@ const github = __importStar(__nccwpck_require__(3228));
 const dependency_submission_toolkit_1 = __nccwpck_require__(3323);
 const componentDetection_1 = __importDefault(__nccwpck_require__(3202));
 function run() {
-    var _a;
+    var _a, _b, _c, _d, _e, _f;
     return __awaiter(this, void 0, void 0, function* () {
-        let manifests = yield componentDetection_1.default.scanAndGetManifests(core.getInput('filePath'));
-        const correlatorInput = ((_a = core.getInput('correlator')) === null || _a === void 0 ? void 0 : _a.trim()) || github.context.job;
-        let snapshot = new dependency_submission_toolkit_1.Snapshot({
-            name: "Component Detection",
-            version: "0.0.1",
-            url: "https://github.com/advanced-security/component-detection-dependency-submission-action",
-        }, github.context, {
+        let manifests = yield componentDetection_1.default.scanAndGetManifests(core.getInput("filePath"));
+        const correlatorInput = ((_a = core.getInput("correlator")) === null || _a === void 0 ? void 0 : _a.trim()) || github.context.job;
+        // Get detector configuration inputs
+        const detectorName = (_b = core.getInput("detector-name")) === null || _b === void 0 ? void 0 : _b.trim();
+        const detectorVersion = (_c = core.getInput("detector-version")) === null || _c === void 0 ? void 0 : _c.trim();
+        const detectorUrl = (_d = core.getInput("detector-url")) === null || _d === void 0 ? void 0 : _d.trim();
+        // Validate that if any detector config is provided, all must be provided
+        const hasAnyDetectorInput = detectorName || detectorVersion || detectorUrl;
+        const hasAllDetectorInputs = detectorName && detectorVersion && detectorUrl;
+        if (hasAnyDetectorInput && !hasAllDetectorInputs) {
+            core.setFailed("If any detector configuration is provided (detector-name, detector-version, detector-url), all three must be provided.");
+            return;
+        }
+        // Use provided detector config or defaults
+        const detector = hasAllDetectorInputs
+            ? {
+                name: detectorName,
+                version: detectorVersion,
+                url: detectorUrl,
+            }
+            : {
+                name: "Component Detection",
+                version: "0.0.1",
+                url: "https://github.com/advanced-security/component-detection-dependency-submission-action",
+            };
+        let snapshot = new dependency_submission_toolkit_1.Snapshot(detector, github.context, {
             correlator: correlatorInput,
-            id: github.context.runId.toString()
+            id: github.context.runId.toString(),
         });
         core.debug(`Manifests: ${manifests === null || manifests === void 0 ? void 0 : manifests.length}`);
-        manifests === null || manifests === void 0 ? void 0 : manifests.forEach(manifest => {
+        manifests === null || manifests === void 0 ? void 0 : manifests.forEach((manifest) => {
             core.debug(`Manifest: ${JSON.stringify(manifest)}`);
             snapshot.addManifest(manifest);
         });
+        // Override snapshot ref and sha if provided
+        const snapshotSha = (_e = core.getInput("snapshot-sha")) === null || _e === void 0 ? void 0 : _e.trim();
+        const snapshotRef = (_f = core.getInput("snapshot-ref")) === null || _f === void 0 ? void 0 : _f.trim();
+        if (snapshotSha) {
+            snapshot.sha = snapshotSha;
+        }
+        if (snapshotRef) {
+            snapshot.ref = snapshotRef;
+        }
         (0, dependency_submission_toolkit_1.submitSnapshot)(snapshot);
     });
 }
