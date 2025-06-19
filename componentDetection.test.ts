@@ -74,7 +74,7 @@ describe("ComponentDetection.addPackagesToManifests", () => {
     const manifests: any[] = [];
 
     const testPackage = {
-      id: "test-package-1",
+      id: "test-package",
       packageUrl: "pkg:npm/test-package@1.0.0",
       isDevelopmentDependency: false,
       topLevelReferrers: [], // Empty array = direct dependency
@@ -100,15 +100,15 @@ describe("ComponentDetection.addPackagesToManifests", () => {
     const manifests: any[] = [];
 
     const testPackage = {
-      id: "test-package-2",
-      packageUrl: "pkg:npm/test-package@2.0.0",
+      id: "test-package",
+      packageUrl: "pkg:npm/test-package@1.0.0",
       isDevelopmentDependency: false,
       topLevelReferrers: [{ packageUrl: "pkg:npm/parent-package@1.0.0" }], // Has referrers = indirect
       locationsFoundAt: ["package.json"],
       containerDetailIds: [],
       containerLayerIds: [],
-      packageID: () => "pkg:npm/test-package@2.0.0",
-      packageURL: { toString: () => "pkg:npm/test-package@2.0.0" }
+      packageID: () => "pkg:npm/test-package@1.0.0",
+      packageURL: { toString: () => "pkg:npm/test-package@1.0.0" }
     };
 
     ComponentDetection.addPackagesToManifests([testPackage] as any, manifests);
@@ -116,6 +116,7 @@ describe("ComponentDetection.addPackagesToManifests", () => {
     expect(manifests).toHaveLength(1);
     expect(manifests[0].name).toBe("package.json");
 
+    // Test the actual manifest state - should be indirect dependency
     expect(manifests[0].directDependencies()).toHaveLength(0);
     expect(manifests[0].indirectDependencies()).toHaveLength(1);
     expect(manifests[0].countDependencies()).toBe(1);
@@ -125,15 +126,15 @@ describe("ComponentDetection.addPackagesToManifests", () => {
     const manifests: any[] = [];
 
     const testPackage = {
-      id: "test-package-3",
-      packageUrl: "pkg:npm/test-package@3.0.0",
+      id: "test-package",
+      packageUrl: "pkg:npm/test-package@1.0.0",
       isDevelopmentDependency: false,
-      topLevelReferrers: [{ packageUrl: "pkg:npm/test-package@3.0.0" }], // Self-reference case
+      topLevelReferrers: [{ packageUrl: "pkg:npm/test-package@1.0.0" }], // Self-reference case
       locationsFoundAt: ["package.json"],
       containerDetailIds: [],
       containerLayerIds: [],
-      packageID: () => "pkg:npm/test-package@3.0.0",
-      packageURL: { toString: () => "pkg:npm/test-package@3.0.0" }
+      packageID: () => "pkg:npm/test-package@1.0.0",
+      packageURL: { toString: () => "pkg:npm/test-package@1.0.0" }
     };
 
     ComponentDetection.addPackagesToManifests([testPackage] as any, manifests);
