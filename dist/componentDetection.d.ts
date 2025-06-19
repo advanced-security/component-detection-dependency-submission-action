@@ -7,6 +7,8 @@ export default class ComponentDetection {
     static runComponentDetection(path: string): Promise<void>;
     private static getComponentDetectionParameters;
     static getManifestsFromResults(): Promise<Manifest[] | undefined>;
+    static processComponentsToManifests(componentsFound: any[]): Manifest[];
+    private static addPackagesToManifests;
     private static getDependencyScope;
     static makePackageUrl(packageUrlJson: any): string;
     private static getLatestReleaseURL;
