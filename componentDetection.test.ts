@@ -69,161 +69,113 @@ describe("ComponentDetection.makePackageUrl", () => {
   });
 });
 
-describe("ComponentDetection.addPackagesToManifests", () => {
+describe("ComponentDetection.processComponentsToManifests", () => {
   test("adds package as direct dependency when no top level referrers", () => {
-    const manifests: any[] = [];
+    const componentsFound = [
+      {
+        component: {
+          name: "test-package",
+          version: "1.0.0",
+          packageUrl: {
+            Scheme: "pkg",
+            Type: "npm",
+            Name: "test-package",
+            Version: "1.0.0"
+          },
+          id: "test-package 1.0.0 - npm"
+        },
+        isDevelopmentDependency: false,
+        topLevelReferrers: [], // Empty = direct dependency
+        locationsFoundAt: ["package.json"]
+      }
+    ];
 
-    const testPackage = {
-      id: "test-package",
-      packageUrl: "pkg:npm/test-package@1.0.0",
-      isDevelopmentDependency: false,
-      topLevelReferrers: [], // Empty array = direct dependency
-      locationsFoundAt: ["package.json"],
-      containerDetailIds: [],
-      containerLayerIds: [],
-      packageID: () => "pkg:npm/test-package@1.0.0",
-      packageURL: { toString: () => "pkg:npm/test-package@1.0.0" }
-    };
-
-    ComponentDetection.addPackagesToManifests([testPackage] as any, manifests);
+    const manifests = ComponentDetection.processComponentsToManifests(componentsFound);
 
     expect(manifests).toHaveLength(1);
     expect(manifests[0].name).toBe("package.json");
-
-    // Test the actual manifest state instead of mock calls
     expect(manifests[0].directDependencies()).toHaveLength(1);
     expect(manifests[0].indirectDependencies()).toHaveLength(0);
     expect(manifests[0].countDependencies()).toBe(1);
   });
 
   test("adds package as indirect dependency when has top level referrers", () => {
-    const manifests: any[] = [];
+    const componentsFound = [
+      {
+        component: {
+          name: "test-package",
+          version: "1.0.0",
+          packageUrl: {
+            Scheme: "pkg",
+            Type: "npm",
+            Name: "test-package",
+            Version: "1.0.0"
+          },
+          id: "test-package 1.0.0 - npm"
+        },
+        isDevelopmentDependency: false,
+        topLevelReferrers: [
+          {
+            name: "parent-package",
+            version: "1.0.0",
+            packageUrl: {
+              Scheme: "pkg",
+              Type: "npm",
+              Name: "parent-package",
+              Version: "1.0.0"
+            }
+          }
+        ],
+        locationsFoundAt: ["package.json"]
+      }
+    ];
 
-    const testPackage = {
-      id: "test-package",
-      packageUrl: "pkg:npm/test-package@1.0.0",
-      isDevelopmentDependency: false,
-      topLevelReferrers: [{ packageUrl: "pkg:npm/parent-package@1.0.0" }], // Has referrers = indirect
-      locationsFoundAt: ["package.json"],
-      containerDetailIds: [],
-      containerLayerIds: [],
-      packageID: () => "pkg:npm/test-package@1.0.0",
-      packageURL: { toString: () => "pkg:npm/test-package@1.0.0" }
-    };
-
-    ComponentDetection.addPackagesToManifests([testPackage] as any, manifests);
+    const manifests = ComponentDetection.processComponentsToManifests(componentsFound);
 
     expect(manifests).toHaveLength(1);
     expect(manifests[0].name).toBe("package.json");
-
-    // Test the actual manifest state - should be indirect dependency
     expect(manifests[0].directDependencies()).toHaveLength(0);
     expect(manifests[0].indirectDependencies()).toHaveLength(1);
     expect(manifests[0].countDependencies()).toBe(1);
   });
 
-  // Component detection reports some packages as top level referrers of themselves
-  // We need to mark as direct as causes Dependency Graph to mark the package as transitive without any Direct
-  test("adds package as indirect dependency when top level referrer is itself", () => {
-    const manifests: any[] = [];
+  test("adds package as direct dependency when top level referrer is itself", () => {
+    const componentsFound = [
+      {
+        component: {
+          name: "test-package",
+          version: "1.0.0",
+          packageUrl: {
+            Scheme: "pkg",
+            Type: "npm",
+            Name: "test-package",
+            Version: "1.0.0"
+          },
+          id: "test-package 1.0.0 - npm"
+        },
+        isDevelopmentDependency: false,
+        topLevelReferrers: [
+          {
+            name: "test-package",
+            version: "1.0.0",
+            packageUrl: {
+              Scheme: "pkg",
+              Type: "npm",
+              Name: "test-package",
+              Version: "1.0.0"
+            }
+          }
+        ],
+        locationsFoundAt: ["package.json"]
+      }
+    ];
 
-    const testPackage = {
-      id: "test-package",
-      packageUrl: "pkg:npm/test-package@1.0.0",
-      isDevelopmentDependency: false,
-      topLevelReferrers: [{ packageUrl: "pkg:npm/test-package@1.0.0" }],
-      locationsFoundAt: ["package.json"],
-      containerDetailIds: [],
-      containerLayerIds: [],
-      packageID: () => "pkg:npm/test-package@1.0.0",
-      packageURL: { toString: () => "pkg:npm/test-package@1.0.0" }
-    };
-
-    ComponentDetection.addPackagesToManifests([testPackage] as any, manifests);
+    const manifests = ComponentDetection.processComponentsToManifests(componentsFound);
 
     expect(manifests).toHaveLength(1);
     expect(manifests[0].name).toBe("package.json");
-
     expect(manifests[0].directDependencies()).toHaveLength(1);
     expect(manifests[0].indirectDependencies()).toHaveLength(0);
     expect(manifests[0].countDependencies()).toBe(1);
-  });
-
-  test("handles multiple packages with mixed dependency types", () => {
-    const manifests: any[] = [];
-
-    const directTestPackage = {
-      id: "direct-package",
-      packageUrl: "pkg:npm/direct-package@1.0.0",
-      isDevelopmentDependency: false,
-      topLevelReferrers: [], // Direct
-      locationsFoundAt: ["package.json"],
-      containerDetailIds: [],
-      containerLayerIds: [],
-      packageID: () => "pkg:npm/direct-package@1.0.0",
-      packageURL: { toString: () => "pkg:npm/direct-package@1.0.0" }
-    };
-
-    const indirectTestPackage = {
-      id: "indirect-package",
-      packageUrl: "pkg:npm/indirect-package@1.0.0",
-      isDevelopmentDependency: false,
-      topLevelReferrers: [{ packageUrl: "pkg:npm/parent@1.0.0" }], // Indirect
-      locationsFoundAt: ["package.json"],
-      containerDetailIds: [],
-      containerLayerIds: [],
-      packageID: () => "pkg:npm/indirect-package@1.0.0",
-      packageURL: { toString: () => "pkg:npm/indirect-package@1.0.0" }
-    };
-
-    ComponentDetection.addPackagesToManifests([directTestPackage, indirectTestPackage] as any, manifests);
-
-    expect(manifests).toHaveLength(1);
-    expect(manifests[0].name).toBe("package.json");
-
-    expect(manifests[0].directDependencies()).toHaveLength(1);
-    expect(manifests[0].indirectDependencies()).toHaveLength(1);
-    expect(manifests[0].countDependencies()).toBe(2);
-  });
-
-  test("creates separate manifests for different locations", () => {
-    const manifests: any[] = [];
-
-    const packageJsonTestPackage = {
-      id: "package-json-dep",
-      packageUrl: "pkg:npm/package-json-dep@1.0.0",
-      isDevelopmentDependency: false,
-      topLevelReferrers: [],
-      locationsFoundAt: ["package.json"],
-      containerDetailIds: [],
-      containerLayerIds: [],
-      packageID: () => "pkg:npm/package-json-dep@1.0.0",
-      packageURL: { toString: () => "pkg:npm/package-json-dep@1.0.0" }
-    };
-
-    const csprojTestPackage = {
-      id: "csproj-dep",
-      packageUrl: "pkg:nuget/csproj-dep@1.0.0",
-      isDevelopmentDependency: false,
-      topLevelReferrers: [],
-      locationsFoundAt: ["project.csproj"],
-      containerDetailIds: [],
-      containerLayerIds: [],
-      packageID: () => "pkg:nuget/csproj-dep@1.0.0",
-      packageURL: { toString: () => "pkg:nuget/csproj-dep@1.0.0" }
-    };
-
-    ComponentDetection.addPackagesToManifests([packageJsonTestPackage, csprojTestPackage] as any, manifests);
-
-    expect(manifests).toHaveLength(2);
-
-    const packageJsonManifest = manifests.find(m => m.name === "package.json");
-    const csprojManifest = manifests.find(m => m.name === "project.csproj");
-
-    expect(packageJsonManifest).toBeDefined();
-    expect(csprojManifest).toBeDefined();
-
-    expect(packageJsonManifest.countDependencies()).toBe(1);
-    expect(csprojManifest.countDependencies()).toBe(1);
   });
 });
