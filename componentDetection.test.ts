@@ -68,3 +68,78 @@ describe("ComponentDetection.makePackageUrl", () => {
     expect(packageUrl).toBe("");
   });
 });
+
+describe("ComponentDetection.addPackagesToManifests", () => {
+  test("adds package as direct dependency when no top level referrers", () => {
+    const manifests: any[] = [];
+
+    const mockPackage = {
+      id: "test-package-1",
+      packageUrl: "pkg:npm/test-package@1.0.0",
+      isDevelopmentDependency: false,
+      topLevelReferrers: [],
+      locationsFoundAt: ["package.json"],
+      containerDetailIds: [],
+      containerLayerIds: [],
+      packageID: () => "pkg:npm/test-package@1.0.0",
+      packageURL: { toString: () => "pkg:npm/test-package@1.0.0" }
+    };
+
+    ComponentDetection.addPackagesToManifests([mockPackage] as any, manifests);
+
+    expect(manifests).toHaveLength(1);
+    expect(manifests[0].name).toBe("package.json");
+  });
+
+  test("adds package as indirect dependency when has top level referrers", () => {
+    const manifests: any[] = [];
+
+    const mockPackage = {
+      id: "test-package-2",
+      packageUrl: "pkg:npm/test-package@2.0.0",
+      isDevelopmentDependency: false,
+      topLevelReferrers: [{ packageUrl: "pkg:npm/parent-package@1.0.0" }],
+      locationsFoundAt: ["package.json"],
+      containerDetailIds: [],
+      containerLayerIds: [],
+      packageID: () => "pkg:npm/test-package@2.0.0",
+      packageURL: { toString: () => "pkg:npm/test-package@2.0.0" }
+    };
+
+    ComponentDetection.addPackagesToManifests([mockPackage] as any, manifests);
+
+    expect(manifests).toHaveLength(1);
+    expect(manifests[0].name).toBe("package.json");
+  });
+
+  test("reuses existing manifest when same location found", () => {
+    let directDependencyCallCount = 0;
+    let indirectDependencyCallCount = 0;
+
+    const existingManifest = {
+      name: "package.json",
+      addDirectDependency: () => { directDependencyCallCount++; },
+      addIndirectDependency: () => { indirectDependencyCallCount++; }
+    };
+    const manifests: any[] = [existingManifest];
+
+    const mockPackage = {
+      id: "test-package-3",
+      packageUrl: "pkg:npm/test-package@3.0.0",
+      isDevelopmentDependency: false,
+      topLevelReferrers: [],
+      locationsFoundAt: ["package.json"],
+      containerDetailIds: [],
+      containerLayerIds: [],
+      packageID: () => "pkg:npm/test-package@3.0.0",
+      packageURL: { toString: () => "pkg:npm/test-package@3.0.0" }
+    };
+
+    ComponentDetection.addPackagesToManifests([mockPackage] as any, manifests);
+
+    expect(manifests).toHaveLength(1);
+    expect(manifests[0]).toBe(existingManifest);
+    expect(directDependencyCallCount).toBe(1);
+    expect(indirectDependencyCallCount).toBe(0);
+  });
+});

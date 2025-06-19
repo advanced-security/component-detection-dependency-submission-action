@@ -135,6 +135,12 @@ export default class ComponentDetection {
     const manifests: Array<Manifest> = [];
 
     // Check the locationsFoundAt for every package and add each as a manifest
+    this.addPackagesToManifests(packages, manifests);
+
+    return manifests;
+  }
+
+  public static addPackagesToManifests(packages: Array<ComponentDetectionPackage>, manifests: Array<Manifest>): void {
     packages.forEach(async (pkg: ComponentDetectionPackage) => {
       pkg.locationsFoundAt.forEach(async (location: any) => {
         if (!manifests.find((manifest: Manifest) => manifest.name == location)) {
@@ -148,7 +154,6 @@ export default class ComponentDetection {
         }
       });
     });
-    return manifests;
   }
 
   private static getDependencyScope(pkg: ComponentDetectionPackage) {
