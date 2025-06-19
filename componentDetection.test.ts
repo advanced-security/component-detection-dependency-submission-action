@@ -122,6 +122,8 @@ describe("ComponentDetection.addPackagesToManifests", () => {
     expect(manifests[0].countDependencies()).toBe(1);
   });
 
+  // Component detection reports some packages as top level referrers of themselves
+  // We need to mark as direct as causes Dependency Graph to mark the package as transitive without any Direct
   test("adds package as indirect dependency when top level referrer is itself", () => {
     const manifests: any[] = [];
 
@@ -129,7 +131,7 @@ describe("ComponentDetection.addPackagesToManifests", () => {
       id: "test-package",
       packageUrl: "pkg:npm/test-package@1.0.0",
       isDevelopmentDependency: false,
-      topLevelReferrers: [{ packageUrl: "pkg:npm/test-package@1.0.0" }], // Self-reference case
+      topLevelReferrers: [{ packageUrl: "pkg:npm/test-package@1.0.0" }],
       locationsFoundAt: ["package.json"],
       containerDetailIds: [],
       containerLayerIds: [],
@@ -142,9 +144,8 @@ describe("ComponentDetection.addPackagesToManifests", () => {
     expect(manifests).toHaveLength(1);
     expect(manifests[0].name).toBe("package.json");
 
-    // Self-referencing packages are currently treated as indirect - this might be a bug to investigate
-    expect(manifests[0].directDependencies()).toHaveLength(0);
-    expect(manifests[0].indirectDependencies()).toHaveLength(1);
+    expect(manifests[0].directDependencies()).toHaveLength(1);
+    expect(manifests[0].indirectDependencies()).toHaveLength(0);
     expect(manifests[0].countDependencies()).toBe(1);
   });
 
