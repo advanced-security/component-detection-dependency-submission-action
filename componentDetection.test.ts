@@ -68,3 +68,114 @@ describe("ComponentDetection.makePackageUrl", () => {
     expect(packageUrl).toBe("");
   });
 });
+
+describe("ComponentDetection.processComponentsToManifests", () => {
+  test("adds package as direct dependency when no top level referrers", () => {
+    const componentsFound = [
+      {
+        component: {
+          name: "test-package",
+          version: "1.0.0",
+          packageUrl: {
+            Scheme: "pkg",
+            Type: "npm",
+            Name: "test-package",
+            Version: "1.0.0"
+          },
+          id: "test-package 1.0.0 - npm"
+        },
+        isDevelopmentDependency: false,
+        topLevelReferrers: [], // Empty = direct dependency
+        locationsFoundAt: ["package.json"]
+      }
+    ];
+
+    const manifests = ComponentDetection.processComponentsToManifests(componentsFound);
+
+    expect(manifests).toHaveLength(1);
+    expect(manifests[0].name).toBe("package.json");
+    expect(manifests[0].directDependencies()).toHaveLength(1);
+    expect(manifests[0].indirectDependencies()).toHaveLength(0);
+    expect(manifests[0].countDependencies()).toBe(1);
+  });
+
+  test("adds package as indirect dependency when has top level referrers", () => {
+    const componentsFound = [
+      {
+        component: {
+          name: "test-package",
+          version: "1.0.0",
+          packageUrl: {
+            Scheme: "pkg",
+            Type: "npm",
+            Name: "test-package",
+            Version: "1.0.0"
+          },
+          id: "test-package 1.0.0 - npm"
+        },
+        isDevelopmentDependency: false,
+        topLevelReferrers: [
+          {
+            name: "parent-package",
+            version: "1.0.0",
+            packageUrl: {
+              Scheme: "pkg",
+              Type: "npm",
+              Name: "parent-package",
+              Version: "1.0.0"
+            }
+          }
+        ],
+        locationsFoundAt: ["package.json"]
+      }
+    ];
+
+    const manifests = ComponentDetection.processComponentsToManifests(componentsFound);
+
+    expect(manifests).toHaveLength(1);
+    expect(manifests[0].name).toBe("package.json");
+    expect(manifests[0].directDependencies()).toHaveLength(0);
+    expect(manifests[0].indirectDependencies()).toHaveLength(1);
+    expect(manifests[0].countDependencies()).toBe(1);
+  });
+
+  test("adds package as direct dependency when top level referrer is itself", () => {
+    const componentsFound = [
+      {
+        component: {
+          name: "test-package",
+          version: "1.0.0",
+          packageUrl: {
+            Scheme: "pkg",
+            Type: "npm",
+            Name: "test-package",
+            Version: "1.0.0"
+          },
+          id: "test-package 1.0.0 - npm"
+        },
+        isDevelopmentDependency: false,
+        topLevelReferrers: [
+          {
+            name: "test-package",
+            version: "1.0.0",
+            packageUrl: {
+              Scheme: "pkg",
+              Type: "npm",
+              Name: "test-package",
+              Version: "1.0.0"
+            }
+          }
+        ],
+        locationsFoundAt: ["package.json"]
+      }
+    ];
+
+    const manifests = ComponentDetection.processComponentsToManifests(componentsFound);
+
+    expect(manifests).toHaveLength(1);
+    expect(manifests[0].name).toBe("package.json");
+    expect(manifests[0].directDependencies()).toHaveLength(1);
+    expect(manifests[0].indirectDependencies()).toHaveLength(0);
+    expect(manifests[0].countDependencies()).toBe(1);
+  });
+});

@@ -36054,78 +36054,91 @@ class ComponentDetection {
     static getManifestsFromResults() {
         return __awaiter(this, void 0, void 0, function* () {
             core.info("Getting manifests from results");
-            // Parse the result file and add the packages to the package cache
-            const packageCache = new dependency_submission_toolkit_1.PackageCache();
-            const packages = [];
             const results = yield fs_1.default.readFileSync(this.outputPath, 'utf8');
             var json = JSON.parse(results);
-            json.componentsFound.forEach((component) => __awaiter(this, void 0, void 0, function* () {
-                // Skip components without packageUrl
-                if (!component.component.packageUrl) {
-                    core.debug(`Skipping component detected without packageUrl: ${JSON.stringify({
-                        id: component.component.id,
-                        name: component.component.name || 'unnamed',
-                        type: component.component.type || 'unknown'
-                    }, null, 2)}`);
+            return this.processComponentsToManifests(json.componentsFound);
+        });
+    }
+    static processComponentsToManifests(componentsFound) {
+        // Parse the result file and add the packages to the package cache
+        const packageCache = new dependency_submission_toolkit_1.PackageCache();
+        const packages = [];
+        componentsFound.forEach((component) => __awaiter(this, void 0, void 0, function* () {
+            // Skip components without packageUrl
+            if (!component.component.packageUrl) {
+                core.debug(`Skipping component detected without packageUrl: ${JSON.stringify({
+                    id: component.component.id,
+                    name: component.component.name || 'unnamed',
+                    type: component.component.type || 'unknown'
+                }, null, 2)}`);
+                return;
+            }
+            const packageUrl = ComponentDetection.makePackageUrl(component.component.packageUrl);
+            // Skip if the packageUrl is empty (indicates an invalid or missing packageUrl)
+            if (!packageUrl) {
+                core.debug(`Skipping component with invalid packageUrl: ${component.component.id}`);
+                return;
+            }
+            if (!packageCache.hasPackage(packageUrl)) {
+                const pkg = new ComponentDetectionPackage(packageUrl, component.component.id, component.isDevelopmentDependency, component.topLevelReferrers, component.locationsFoundAt, component.containerDetailIds, component.containerLayerIds);
+                packageCache.addPackage(pkg);
+                packages.push(pkg);
+            }
+        }));
+        // Set the transitive dependencies
+        core.debug("Sorting out transitive dependencies");
+        packages.forEach((pkg) => __awaiter(this, void 0, void 0, function* () {
+            pkg.topLevelReferrers.forEach((referrer) => __awaiter(this, void 0, void 0, function* () {
+                // Skip if referrer doesn't have a valid packageUrl
+                if (!referrer.packageUrl) {
+                    core.debug(`Skipping referrer without packageUrl for component: ${pkg.id}`);
                     return;
                 }
-                const packageUrl = ComponentDetection.makePackageUrl(component.component.packageUrl);
-                // Skip if the packageUrl is empty (indicates an invalid or missing packageUrl)
-                if (!packageUrl) {
-                    core.debug(`Skipping component with invalid packageUrl: ${component.component.id}`);
+                const referrerUrl = ComponentDetection.makePackageUrl(referrer.packageUrl);
+                referrer.packageUrlString = referrerUrl;
+                // Skip if the generated packageUrl is empty
+                if (!referrerUrl) {
+                    core.debug(`Skipping referrer with invalid packageUrl for component: ${pkg.id}`);
                     return;
                 }
-                if (!packageCache.hasPackage(packageUrl)) {
-                    const pkg = new ComponentDetectionPackage(packageUrl, component.component.id, component.isDevelopmentDependency, component.topLevelReferrers, component.locationsFoundAt, component.containerDetailIds, component.containerLayerIds);
-                    packageCache.addPackage(pkg);
-                    packages.push(pkg);
+                try {
+                    const referrerPackage = packageCache.lookupPackage(referrerUrl);
+                    if (referrerPackage) {
+                        referrerPackage.dependsOn(pkg);
+                    }
+                }
+                catch (error) {
+                    core.debug(`Error looking up referrer package: ${error}`);
                 }
             }));
-            // Set the transitive dependencies
-            core.debug("Sorting out transitive dependencies");
-            packages.forEach((pkg) => __awaiter(this, void 0, void 0, function* () {
-                pkg.topLevelReferrers.forEach((referrer) => __awaiter(this, void 0, void 0, function* () {
-                    // Skip if referrer doesn't have a valid packageUrl
-                    if (!referrer.packageUrl) {
-                        core.debug(`Skipping referrer without packageUrl for component: ${pkg.id}`);
-                        return;
-                    }
-                    const referrerUrl = ComponentDetection.makePackageUrl(referrer.packageUrl);
-                    // Skip if the generated packageUrl is empty
-                    if (!referrerUrl) {
-                        core.debug(`Skipping referrer with invalid packageUrl for component: ${pkg.id}`);
-                        return;
-                    }
-                    try {
-                        const referrerPackage = packageCache.lookupPackage(referrerUrl);
-                        if (referrerPackage) {
-                            referrerPackage.dependsOn(pkg);
-                        }
-                    }
-                    catch (error) {
-                        core.debug(`Error looking up referrer package: ${error}`);
-                    }
-                }));
-            }));
-            // Create manifests
-            const manifests = [];
-            // Check the locationsFoundAt for every package and add each as a manifest
-            packages.forEach((pkg) => __awaiter(this, void 0, void 0, function* () {
-                pkg.locationsFoundAt.forEach((location) => __awaiter(this, void 0, void 0, function* () {
-                    var _a, _b;
-                    if (!manifests.find((manifest) => manifest.name == location)) {
-                        const manifest = new dependency_submission_toolkit_1.Manifest(location, location);
-                        manifests.push(manifest);
-                    }
-                    if (pkg.topLevelReferrers.length == 0) {
-                        (_a = manifests.find((manifest) => manifest.name == location)) === null || _a === void 0 ? void 0 : _a.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
-                    }
-                    else {
-                        (_b = manifests.find((manifest) => manifest.name == location)) === null || _b === void 0 ? void 0 : _b.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
-                    }
-                }));
-            }));
-            return manifests;
+        }));
+        // Create manifests
+        const manifests = [];
+        // Check the locationsFoundAt for every package and add each as a manifest
+        this.addPackagesToManifests(packages, manifests);
+        return manifests;
+    }
+    static addPackagesToManifests(packages, manifests) {
+        packages.forEach((pkg) => {
+            pkg.locationsFoundAt.forEach((location) => {
+                var _a, _b;
+                if (!manifests.find((manifest) => manifest.name == location)) {
+                    const manifest = new dependency_submission_toolkit_1.Manifest(location, location);
+                    manifests.push(manifest);
+                }
+                // Filter out self-references from topLevelReferrers
+                const nonSelfReferrers = pkg.topLevelReferrers.filter((referrer) => {
+                    if (!referrer.packageUrlString)
+                        return false;
+                    return referrer.packageUrlString !== pkg.packageUrlString;
+                });
+                if (nonSelfReferrers.length == 0) {
+                    (_a = manifests.find((manifest) => manifest.name == location)) === null || _a === void 0 ? void 0 : _a.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
+                }
+                else {
+                    (_b = manifests.find((manifest) => manifest.name == location)) === null || _b === void 0 ? void 0 : _b.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
+                }
+            });
         });
     }
     static getDependencyScope(pkg) {
@@ -36216,6 +36229,7 @@ class ComponentDetectionPackage extends dependency_submission_toolkit_1.Package 
         this.locationsFoundAt = locationsFoundAt;
         this.containerDetailIds = containerDetailIds;
         this.containerLayerIds = containerLayerIds;
+        this.packageUrlString = packageUrl;
     }
 }
 

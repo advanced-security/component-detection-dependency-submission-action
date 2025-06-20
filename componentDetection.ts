@@ -68,14 +68,17 @@ export default class ComponentDetection {
 
   public static async getManifestsFromResults(): Promise<Manifest[] | undefined> {
     core.info("Getting manifests from results");
+    const results = await fs.readFileSync(this.outputPath, 'utf8');
+    var json: any = JSON.parse(results);
+    return this.processComponentsToManifests(json.componentsFound);
+  }
+
+  public static processComponentsToManifests(componentsFound: any[]): Manifest[] {
     // Parse the result file and add the packages to the package cache
     const packageCache = new PackageCache();
     const packages: Array<ComponentDetectionPackage> = [];
 
-    const results = await fs.readFileSync(this.outputPath, 'utf8');
-
-    var json: any = JSON.parse(results);
-    json.componentsFound.forEach(async (component: any) => {
+    componentsFound.forEach(async (component: any) => {
       // Skip components without packageUrl
       if (!component.component.packageUrl) {
         core.debug(`Skipping component detected without packageUrl: ${JSON.stringify({
@@ -113,6 +116,7 @@ export default class ComponentDetection {
         }
 
         const referrerUrl = ComponentDetection.makePackageUrl(referrer.packageUrl);
+        referrer.packageUrlString = referrerUrl
 
         // Skip if the generated packageUrl is empty
         if (!referrerUrl) {
@@ -135,20 +139,32 @@ export default class ComponentDetection {
     const manifests: Array<Manifest> = [];
 
     // Check the locationsFoundAt for every package and add each as a manifest
-    packages.forEach(async (pkg: ComponentDetectionPackage) => {
-      pkg.locationsFoundAt.forEach(async (location: any) => {
+    this.addPackagesToManifests(packages, manifests);
+
+    return manifests;
+  }
+
+  private static addPackagesToManifests(packages: Array<ComponentDetectionPackage>, manifests: Array<Manifest>): void {
+    packages.forEach((pkg: ComponentDetectionPackage) => {
+      pkg.locationsFoundAt.forEach((location: any) => {
         if (!manifests.find((manifest: Manifest) => manifest.name == location)) {
           const manifest = new Manifest(location, location);
           manifests.push(manifest);
         }
-        if (pkg.topLevelReferrers.length == 0) {
+
+        // Filter out self-references from topLevelReferrers
+        const nonSelfReferrers = pkg.topLevelReferrers.filter((referrer: any) => {
+          if (!referrer.packageUrlString) return false;
+          return referrer.packageUrlString !== pkg.packageUrlString;
+        });
+
+        if (nonSelfReferrers.length == 0) {
           manifests.find((manifest: Manifest) => manifest.name == location)?.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
         } else {
           manifests.find((manifest: Manifest) => manifest.name == location)?.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
         }
       });
     });
-    return manifests;
   }
 
   private static getDependencyScope(pkg: ComponentDetectionPackage) {
@@ -236,10 +252,12 @@ export default class ComponentDetection {
 }
 
 class ComponentDetectionPackage extends Package {
+  public packageUrlString: string;
 
   constructor(packageUrl: string, public id: string, public isDevelopmentDependency: boolean, public topLevelReferrers: [],
     public locationsFoundAt: [], public containerDetailIds: [], public containerLayerIds: []) {
     super(packageUrl);
+    this.packageUrlString = packageUrl;
   }
 }
 
