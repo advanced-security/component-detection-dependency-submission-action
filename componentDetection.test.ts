@@ -1,4 +1,4 @@
-import ComponentDetection from "./componentDetection";
+import ComponentDetection, { DependencyGraphs } from "./componentDetection";
 import fs from "fs";
 
 test("Downloads CLI", async () => {
@@ -70,7 +70,7 @@ describe("ComponentDetection.makePackageUrl", () => {
 });
 
 describe("ComponentDetection.processComponentsToManifests", () => {
-  test("adds package as direct dependency when no top level referrers", () => {
+  test("adds package as direct dependency when it is listed as an explicitlyReferencedComponentIds", () => {
     const componentsFound = [
       {
         component: {
@@ -86,20 +86,29 @@ describe("ComponentDetection.processComponentsToManifests", () => {
         },
         isDevelopmentDependency: false,
         topLevelReferrers: [], // Empty = direct dependency
-        locationsFoundAt: ["package.json"]
+        locationsFoundAt: ["/package.json"]
       }
     ];
 
-    const manifests = ComponentDetection.processComponentsToManifests(componentsFound);
+    const dependencyGraphs: DependencyGraphs = {
+      "/package.json": {
+        graph: { "test-package": null },
+        explicitlyReferencedComponentIds: ["test-package 1.0.0 - npm"],
+        developmentDependencies: [],
+        dependencies: []
+      }
+    };
+
+    const manifests = ComponentDetection.processComponentsToManifests(componentsFound, dependencyGraphs);
 
     expect(manifests).toHaveLength(1);
-    expect(manifests[0].name).toBe("package.json");
+    expect(manifests[0].name).toBe("/package.json");
     expect(manifests[0].directDependencies()).toHaveLength(1);
     expect(manifests[0].indirectDependencies()).toHaveLength(0);
     expect(manifests[0].countDependencies()).toBe(1);
   });
 
-  test("adds package as indirect dependency when has top level referrers", () => {
+  test("adds package as indirect dependency when it is not in explicitlyReferencedComponentIds", () => {
     const componentsFound = [
       {
         component: {
@@ -126,56 +135,75 @@ describe("ComponentDetection.processComponentsToManifests", () => {
             }
           }
         ],
-        locationsFoundAt: ["package.json"]
+        locationsFoundAt: ["/package.json"]
       }
     ];
 
-    const manifests = ComponentDetection.processComponentsToManifests(componentsFound);
+    const dependencyGraphs: DependencyGraphs = {
+      "/package.json": {
+        graph: { "parent-package": null },
+        explicitlyReferencedComponentIds: [],
+        developmentDependencies: [],
+        dependencies: []
+      }
+    };
+
+    const manifests = ComponentDetection.processComponentsToManifests(componentsFound, dependencyGraphs);
 
     expect(manifests).toHaveLength(1);
-    expect(manifests[0].name).toBe("package.json");
+    expect(manifests[0].name).toBe("/package.json");
     expect(manifests[0].directDependencies()).toHaveLength(0);
     expect(manifests[0].indirectDependencies()).toHaveLength(1);
     expect(manifests[0].countDependencies()).toBe(1);
   });
+});
 
-  test("adds package as direct dependency when top level referrer is itself", () => {
-    const componentsFound = [
-      {
-        component: {
-          name: "test-package",
-          version: "1.0.0",
-          packageUrl: {
-            Scheme: "pkg",
-            Type: "npm",
-            Name: "test-package",
-            Version: "1.0.0"
-          },
-          id: "test-package 1.0.0 - npm"
-        },
-        isDevelopmentDependency: false,
-        topLevelReferrers: [
-          {
-            name: "test-package",
-            version: "1.0.0",
-            packageUrl: {
-              Scheme: "pkg",
-              Type: "npm",
-              Name: "test-package",
-              Version: "1.0.0"
-            }
-          }
-        ],
-        locationsFoundAt: ["package.json"]
+describe('normalizeDependencyGraphPaths', () => {
+  test('converts absolute paths to relative paths based on filePath input', () => {
+    // Simulate a repo at /repo and a scan root at /repo/packages
+    const fakeCwd = '/workspaces';
+    const filePathInput = 'my-super-cool-repo';
+    const absBase = '/workspaces/my-super-cool-repo';
+    const dependencyGraphs: DependencyGraphs = {
+      '/workspaces/my-super-cool-repo/a/package.json': {
+        graph: { 'foo': null },
+        explicitlyReferencedComponentIds: [],
+        developmentDependencies: [],
+        dependencies: []
+      },
+      '/workspaces/my-super-cool-repo/b/package.json': {
+        graph: { 'bar': null },
+        explicitlyReferencedComponentIds: [],
+        developmentDependencies: [],
+        dependencies: []
       }
-    ];
+    };
+    // Patch process.cwd for this test
+    const originalCwd = process.cwd;
+    (process as any).cwd = () => fakeCwd;
+    const normalized = ComponentDetection.normalizeDependencyGraphPaths(dependencyGraphs, filePathInput);
+    // Restore process.cwd
+    (process as any).cwd = originalCwd;
+    expect(Object.keys(normalized)).toContain('/a/package.json');
+    expect(Object.keys(normalized)).toContain('/b/package.json');
+    expect(normalized['/a/package.json'].graph).toEqual({ 'foo': null });
+    expect(normalized['/b/package.json'].graph).toEqual({ 'bar': null });
+  });
+});
 
-    const manifests = ComponentDetection.processComponentsToManifests(componentsFound);
-
-    expect(manifests).toHaveLength(1);
-    expect(manifests[0].name).toBe("package.json");
-    expect(manifests[0].directDependencies()).toHaveLength(1);
-    expect(manifests[0].indirectDependencies()).toHaveLength(0);
-    expect(manifests[0].countDependencies()).toBe(1);
+describe('normalizeDependencyGraphPaths with real output.json', () => {
+  test('converts absolute paths in output.json to relative paths using current cwd and filePath', () => {
+    const output = JSON.parse(fs.readFileSync('./output.json', 'utf8'));
+    const dependencyGraphs = output.dependencyGraphs;
+    // Use the same filePath as the action default (".")
+    const normalized = ComponentDetection.normalizeDependencyGraphPaths(dependencyGraphs, 'test');
+    // Should contain /package.json and /package-lock.json as keys
+    expect(Object.keys(normalized)).toContain('/package.json');
+    expect(Object.keys(normalized)).toContain('/package-lock.json');
+    // All keys should now be relative to the repo root (cwd) and start with '/'
+    for (const key of Object.keys(normalized)) {
+      expect(key.startsWith('/')).toBe(true);
+      expect(key).not.toMatch(/^\w:\\|^\/\/|^\.{1,2}\//); // Not windows absolute, not network, not relative
+    }
   });
 });
