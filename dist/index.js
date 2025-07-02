@@ -36002,6 +36002,7 @@ const cross_fetch_1 = __importDefault(__nccwpck_require__(3304));
 const fs_1 = __importDefault(__nccwpck_require__(9896));
 const exec = __importStar(__nccwpck_require__(5236));
 const dotenv_1 = __importDefault(__nccwpck_require__(8889));
+const path_1 = __importDefault(__nccwpck_require__(6928));
 dotenv_1.default.config();
 class ComponentDetection {
     // This is the default entry point for this class.
@@ -36056,10 +36057,11 @@ class ComponentDetection {
             core.info("Getting manifests from results");
             const results = yield fs_1.default.readFileSync(this.outputPath, 'utf8');
             var json = JSON.parse(results);
-            return this.processComponentsToManifests(json.componentsFound);
+            let dependencyGraphs = this.normalizeDependencyGraphPaths(json.dependencyGraphs, core.getInput('filePath'));
+            return this.processComponentsToManifests(json.componentsFound, dependencyGraphs);
         });
     }
-    static processComponentsToManifests(componentsFound) {
+    static processComponentsToManifests(componentsFound, dependencyGraphs) {
         // Parse the result file and add the packages to the package cache
         const packageCache = new dependency_submission_toolkit_1.PackageCache();
         const packages = [];
@@ -36103,6 +36105,10 @@ class ComponentDetection {
                 }
                 try {
                     const referrerPackage = packageCache.lookupPackage(referrerUrl);
+                    if (referrerPackage === pkg) {
+                        core.debug(`Skipping self-reference for package: ${pkg.id}`);
+                        return; // Skip self-references
+                    }
                     if (referrerPackage) {
                         referrerPackage.dependsOn(pkg);
                     }
@@ -36115,10 +36121,10 @@ class ComponentDetection {
         // Create manifests
         const manifests = [];
         // Check the locationsFoundAt for every package and add each as a manifest
-        this.addPackagesToManifests(packages, manifests);
+        this.addPackagesToManifests(packages, manifests, dependencyGraphs);
         return manifests;
     }
-    static addPackagesToManifests(packages, manifests) {
+    static addPackagesToManifests(packages, manifests, dependencyGraphs) {
         packages.forEach((pkg) => {
             pkg.locationsFoundAt.forEach((location) => {
                 var _a, _b;
@@ -36126,17 +36132,19 @@ class ComponentDetection {
                     const manifest = new dependency_submission_toolkit_1.Manifest(location, location);
                     manifests.push(manifest);
                 }
-                // Filter out self-references from topLevelReferrers
-                const nonSelfReferrers = pkg.topLevelReferrers.filter((referrer) => {
-                    if (!referrer.packageUrlString)
-                        return false;
-                    return referrer.packageUrlString !== pkg.packageUrlString;
-                });
-                if (nonSelfReferrers.length == 0) {
-                    (_a = manifests.find((manifest) => manifest.name == location)) === null || _a === void 0 ? void 0 : _a.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
+                const depGraphEntry = dependencyGraphs[location];
+                if (!depGraphEntry) {
+                    core.warning(`No dependency graph entry found for manifest location: ${location}`);
+                    return; // Skip this location if not found in dependencyGraphs
+                }
+                const directDependencies = depGraphEntry.explicitlyReferencedComponentIds;
+                if (directDependencies.includes(pkg.id)) {
+                    (_a = manifests
+                        .find((manifest) => manifest.name == location)) === null || _a === void 0 ? void 0 : _a.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
                 }
                 else {
-                    (_b = manifests.find((manifest) => manifest.name == location)) === null || _b === void 0 ? void 0 : _b.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
+                    (_b = manifests
+                        .find((manifest) => manifest.name == location)) === null || _b === void 0 ? void 0 : _b.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
                 }
             });
         });
@@ -36215,6 +36223,26 @@ class ComponentDetection {
                 throw new Error("Failed to download latest release");
             }
         });
+    }
+    /**
+     * Normalizes the keys of a DependencyGraphs object to be relative paths from the resolved filePath input.
+     * @param dependencyGraphs The DependencyGraphs object to normalize.
+     * @param filePathInput The filePath input (relative or absolute) from the action configuration.
+     * @returns A new DependencyGraphs object with relative path keys.
+     */
+    static normalizeDependencyGraphPaths(dependencyGraphs, filePathInput) {
+        // Resolve the base directory from filePathInput (relative to cwd if not absolute)
+        const baseDir = path_1.default.resolve(process.cwd(), filePathInput);
+        const normalized = {};
+        for (const absPath in dependencyGraphs) {
+            // Make the path relative to the baseDir
+            let relPath = path_1.default.relative(baseDir, absPath).replace(/\\/g, '/');
+            // Ensure leading slash to represent repo root
+            if (!relPath.startsWith('/'))
+                relPath = '/' + relPath;
+            normalized[relPath] = dependencyGraphs[absPath];
+        }
+        return normalized;
     }
 }
 exports["default"] = ComponentDetection;
