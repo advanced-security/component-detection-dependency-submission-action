@@ -36105,6 +36105,10 @@ class ComponentDetection {
                 }
                 try {
                     const referrerPackage = packageCache.lookupPackage(referrerUrl);
+                    if (referrerPackage === pkg) {
+                        core.debug(`Skipping self-reference for package: ${pkg.id}`);
+                        return; // Skip self-references
+                    }
                     if (referrerPackage) {
                         referrerPackage.dependsOn(pkg);
                     }
