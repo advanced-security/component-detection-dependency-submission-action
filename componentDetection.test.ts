@@ -198,9 +198,9 @@ describe('normalizeDependencyGraphPaths with real output.json', () => {
     const dependencyGraphs = output.dependencyGraphs;
     // Use the same filePath as the action default (".")
     const normalized = ComponentDetection.normalizeDependencyGraphPaths(dependencyGraphs, 'test');
-    // Should contain /package.json and /package-lock.json as keys
-    expect(Object.keys(normalized)).toContain('/package.json');
-    expect(Object.keys(normalized)).toContain('/package-lock.json');
+    // Root level manifests should not have leading slashes
+    expect(Object.keys(normalized)).toContain('package.json');
+    expect(Object.keys(normalized)).toContain('package-lock.json');
     // All keys should now be relative to the repo root (cwd) and start with '/'
     for (const key of Object.keys(normalized)) {
       expect(key.startsWith('/')).toBe(true);
