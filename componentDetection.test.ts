@@ -2,13 +2,11 @@ import ComponentDetection, { DependencyGraphs } from "./componentDetection";
 import fs from "fs";
 
 test("Downloads CLI", async () => {
- console.log("Downloads CLI")
   await ComponentDetection.downloadLatestRelease();
   expect(fs.existsSync(ComponentDetection.componentDetectionPath));
 });
 
 test("Runs CLI", async () => {
- console.log("Runs CLI")
   await ComponentDetection.downloadLatestRelease();
   await ComponentDetection.runComponentDetection("./test");
   expect(fs.existsSync(ComponentDetection.outputPath));
@@ -23,7 +21,6 @@ test("Parses CLI output", async () => {
 
 describe("ComponentDetection.makePackageUrl", () => {
   test("returns a valid package url from saturated object", () => {
- console.log("ComponentDetection.makePackageUrl")
     const packageUrl = ComponentDetection.makePackageUrl({
       Scheme: "pkg",
       Type: "npm",
@@ -41,7 +38,6 @@ describe("ComponentDetection.makePackageUrl", () => {
   });
 
   test("returns valid package url without dangling ? with empty qualifers", () => {
- console.log("returns valid package url without dangling ? with empty qualifers")
     const packageUrl = ComponentDetection.makePackageUrl({
       Scheme: "pkg",
       Type: "npm",
@@ -192,7 +188,6 @@ describe('normalizeDependencyGraphPaths', () => {
     expect(Object.keys(normalized)).toContain('b/package.json');
     expect(normalized['a/package.json'].graph).toEqual({ 'foo': null });
     expect(normalized['b/package.json'].graph).toEqual({ 'bar': null });
-    console.log(normalized);
   });
 });
 
@@ -219,7 +214,6 @@ describe('normalizeDependencyGraphPaths with real output.json', () => {
   });
 
   test('full action scan creates manifests with correct names and file source locations', async () => {
-    // Run the full action flow
     const manifests = await ComponentDetection.scanAndGetManifests('./test');
 
     expect(manifests).toBeDefined();
@@ -230,7 +224,6 @@ describe('normalizeDependencyGraphPaths with real output.json', () => {
       expect(manifest.name.startsWith('/')).toBe(false);
     }
 
-    // Expected manifest names based on test data files
     const expectedManifestNames = [
       'package.json',
       'package-lock.json',
@@ -245,19 +238,12 @@ describe('normalizeDependencyGraphPaths with real output.json', () => {
       return acc;
     }, {} as Record<string, any>);
 
-    console.log('Found manifests:', Object.keys(manifestsByName));
-
     // Check each expected manifest if it exists
     for (const expectedName of expectedManifestNames) {
       const manifest = manifestsByName[expectedName];
       if (manifest) {
-        // Check manifest name is correct
         expect(manifest.name).toBe(expectedName);
-
-        // Check file source location matches the manifest name
         expect(manifest.file?.source_location).toBe(expectedName);
-
-        console.log(`✓ Verified manifest: ${expectedName}`);
       }
     }
 
