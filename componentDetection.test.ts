@@ -212,55 +212,56 @@ describe('normalizeDependencyGraphPaths with real output.json', () => {
       expect(key).not.toMatch(/^\w:\\|^\/\/|^\.{1,2}\//); // Not windows absolute, not network, not relative
     }
   });
-
-  test('full action scan creates manifests with correct names and file source locations', async () => {
-    const manifests = await ComponentDetection.scanAndGetManifests('./test');
-
-    expect(manifests).toBeDefined();
-    expect(manifests!.length).toBeGreaterThan(0);
-
-    // Ensure no manifest names have leading slashes
-    for (const manifest of manifests!) {
-      expect(manifest.name.startsWith('/')).toBe(false);
-    }
-
-    const expectedManifestNames = [
-      'package.json',
-      'package-lock.json',
-      'nested/package.json',
-      'nested/package-lock.json',
-      'environment.yaml'
-    ];
-
-    // Create a lookup for manifests by name
-    const manifestsByName = manifests!.reduce((acc, manifest) => {
-      acc[manifest.name] = manifest;
-      return acc;
-    }, {} as Record<string, any>);
-
-    // Check each expected manifest if it exists
-    for (const expectedName of expectedManifestNames) {
-      const manifest = manifestsByName[expectedName];
-      if (manifest) {
-        expect(manifest.name).toBe(expectedName);
-        expect(manifest.file?.source_location).toBe(expectedName);
-      }
-    }
-
-    // Verify specific expected manifests exist with correct properties
-    if (manifestsByName['package.json']) {
-      expect(manifestsByName['package.json'].name).toBe('package.json');
-      expect(manifestsByName['package.json'].file?.source_location).toBe('package.json');
-    }
-
-    if (manifestsByName['nested/package.json']) {
-      expect(manifestsByName['nested/package.json'].name).toBe('nested/package.json');
-      expect(manifestsByName['nested/package.json'].file?.source_location).toBe('nested/package.json');
-    }
-
-    if (manifestsByName['environment.yaml']) {
-      expect(manifestsByName['environment.yaml'].name).toBe('environment.yaml');
-      expect(manifestsByName['environment.yaml'].file?.source_location).toBe('environment.yaml');
-    }
-  }, 15000);
 });
+
+test('full action scan creates manifests with correct names and file source locations', async () => {
+  await ComponentDetection.downloadLatestRelease();
+  const manifests = await ComponentDetection.scanAndGetManifests('./test');
+
+  expect(manifests).toBeDefined();
+  expect(manifests!.length).toBeGreaterThan(0);
+
+  // Ensure no manifest names have leading slashes
+  for (const manifest of manifests!) {
+    expect(manifest.name.startsWith('/')).toBe(false);
+  }
+
+  const expectedManifestNames = [
+    'package.json',
+    'package-lock.json',
+    'nested/package.json',
+    'nested/package-lock.json',
+    'environment.yaml'
+  ];
+
+  // Create a lookup for manifests by name
+  const manifestsByName = manifests!.reduce((acc, manifest) => {
+    acc[manifest.name] = manifest;
+    return acc;
+  }, {} as Record<string, any>);
+
+  // Check each expected manifest if it exists
+  for (const expectedName of expectedManifestNames) {
+    const manifest = manifestsByName[expectedName];
+    if (manifest) {
+      expect(manifest.name).toBe(expectedName);
+      expect(manifest.file?.source_location).toBe(expectedName);
+    }
+  }
+
+  // Verify specific expected manifests exist with correct properties
+  if (manifestsByName['package.json']) {
+    expect(manifestsByName['package.json'].name).toBe('package.json');
+    expect(manifestsByName['package.json'].file?.source_location).toBe('package.json');
+  }
+
+  if (manifestsByName['nested/package.json']) {
+    expect(manifestsByName['nested/package.json'].name).toBe('nested/package.json');
+    expect(manifestsByName['nested/package.json'].file?.source_location).toBe('nested/package.json');
+  }
+
+  if (manifestsByName['environment.yaml']) {
+    expect(manifestsByName['environment.yaml'].name).toBe('environment.yaml');
+    expect(manifestsByName['environment.yaml'].file?.source_location).toBe('environment.yaml');
+  }
+}, 15000);
