@@ -1,6 +1,6 @@
 {
   "name": "component-detection-action",
-  "version": "0.0.7",
+  "version": "0.1.0",
   "description": "Component detection action",
   "main": "dist/index.js",
   "type": "module",
