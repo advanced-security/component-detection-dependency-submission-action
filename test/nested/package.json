@@ -1,0 +1,12 @@
+{
+  "name": "nested-test-package",
+  "version": "1.0.0",
+  "description": "A nested test package for component detection testing",
+  "main": "index.js",
+  "dependencies": {
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0"
+  }
+}

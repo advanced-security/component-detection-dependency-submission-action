@@ -86,12 +86,12 @@ describe("ComponentDetection.processComponentsToManifests", () => {
         },
         isDevelopmentDependency: false,
         topLevelReferrers: [], // Empty = direct dependency
-        locationsFoundAt: ["/package.json"]
+        locationsFoundAt: ["package.json"]
       }
     ];
 
     const dependencyGraphs: DependencyGraphs = {
-      "/package.json": {
+      "package.json": {
         graph: { "test-package": null },
         explicitlyReferencedComponentIds: ["test-package 1.0.0 - npm"],
         developmentDependencies: [],
@@ -102,7 +102,7 @@ describe("ComponentDetection.processComponentsToManifests", () => {
     const manifests = ComponentDetection.processComponentsToManifests(componentsFound, dependencyGraphs);
 
     expect(manifests).toHaveLength(1);
-    expect(manifests[0].name).toBe("/package.json");
+    expect(manifests[0].name).toBe("package.json");
     expect(manifests[0].directDependencies()).toHaveLength(1);
     expect(manifests[0].indirectDependencies()).toHaveLength(0);
     expect(manifests[0].countDependencies()).toBe(1);
@@ -135,12 +135,12 @@ describe("ComponentDetection.processComponentsToManifests", () => {
             }
           }
         ],
-        locationsFoundAt: ["/package.json"]
+        locationsFoundAt: ["package.json"]
       }
     ];
 
     const dependencyGraphs: DependencyGraphs = {
-      "/package.json": {
+      "package.json": {
         graph: { "parent-package": null },
         explicitlyReferencedComponentIds: [],
         developmentDependencies: [],
@@ -151,7 +151,7 @@ describe("ComponentDetection.processComponentsToManifests", () => {
     const manifests = ComponentDetection.processComponentsToManifests(componentsFound, dependencyGraphs);
 
     expect(manifests).toHaveLength(1);
-    expect(manifests[0].name).toBe("/package.json");
+    expect(manifests[0].name).toBe("package.json");
     expect(manifests[0].directDependencies()).toHaveLength(0);
     expect(manifests[0].indirectDependencies()).toHaveLength(1);
     expect(manifests[0].countDependencies()).toBe(1);
@@ -184,10 +184,10 @@ describe('normalizeDependencyGraphPaths', () => {
     const normalized = ComponentDetection.normalizeDependencyGraphPaths(dependencyGraphs, filePathInput);
     // Restore process.cwd
     (process as any).cwd = originalCwd;
-    expect(Object.keys(normalized)).toContain('/a/package.json');
-    expect(Object.keys(normalized)).toContain('/b/package.json');
-    expect(normalized['/a/package.json'].graph).toEqual({ 'foo': null });
-    expect(normalized['/b/package.json'].graph).toEqual({ 'bar': null });
+    expect(Object.keys(normalized)).toContain('a/package.json');
+    expect(Object.keys(normalized)).toContain('b/package.json');
+    expect(normalized['a/package.json'].graph).toEqual({ 'foo': null });
+    expect(normalized['b/package.json'].graph).toEqual({ 'bar': null });
   });
 });
 
@@ -197,13 +197,50 @@ describe('normalizeDependencyGraphPaths with real output.json', () => {
     const dependencyGraphs = output.dependencyGraphs;
     // Use the same filePath as the action default (".")
     const normalized = ComponentDetection.normalizeDependencyGraphPaths(dependencyGraphs, 'test');
-    // Should contain /package.json and /package-lock.json as keys
-    expect(Object.keys(normalized)).toContain('/package.json');
-    expect(Object.keys(normalized)).toContain('/package-lock.json');
-    // All keys should now be relative to the repo root (cwd) and start with '/'
+
+    // Should contain root level manifests without leading slashes
+    expect(Object.keys(normalized)).toContain('package.json');
+    expect(Object.keys(normalized)).toContain('package-lock.json');
+
+    // Should contain nested manifests with relative paths (no leading slashes)
+    expect(Object.keys(normalized)).toContain('nested/package.json');
+    expect(Object.keys(normalized)).toContain('nested/package-lock.json');
+
+    // All keys should be relative paths without leading slashes
     for (const key of Object.keys(normalized)) {
-      expect(key.startsWith('/')).toBe(true);
+      expect(key.startsWith('/')).toBe(false); // No leading slashes
       expect(key).not.toMatch(/^\w:\\|^\/\/|^\.{1,2}\//); // Not windows absolute, not network, not relative
     }
   });
 });
+
+test('full action scan creates manifests with correct names and file source locations', async () => {
+  await ComponentDetection.downloadLatestRelease();
+  const manifests = await ComponentDetection.scanAndGetManifests('./test');
+
+  expect(manifests).toBeDefined();
+  expect(manifests!.length).toBeGreaterThan(0);
+
+  for (const manifest of manifests!) {
+    expect(manifest.name.startsWith('/')).toBe(false);
+  }
+
+  const expectedManifestNames = [
+    'package.json',
+    'package-lock.json',
+    'nested/package.json',
+    'nested/package-lock.json',
+  ];
+
+  const manifestsByName = manifests!.reduce((acc, manifest) => {
+    acc[manifest.name] = manifest;
+    return acc;
+  }, {} as Record<string, any>);
+
+  for (const expectedName of expectedManifestNames) {
+    const manifest = manifestsByName[expectedName];
+    expect(manifest).toBeDefined();
+    expect(manifest.name).toBe(expectedName);
+    expect(manifest.file?.source_location).toBe(expectedName);
+  }
+}, 15000);

@@ -36128,23 +36128,25 @@ class ComponentDetection {
         packages.forEach((pkg) => {
             pkg.locationsFoundAt.forEach((location) => {
                 var _a, _b;
-                if (!manifests.find((manifest) => manifest.name == location)) {
-                    const manifest = new dependency_submission_toolkit_1.Manifest(location, location);
+                // Use the normalized path (remove leading slash if present)
+                const normalizedLocation = location.startsWith('/') ? location.substring(1) : location;
+                if (!manifests.find((manifest) => manifest.name == normalizedLocation)) {
+                    const manifest = new dependency_submission_toolkit_1.Manifest(normalizedLocation, normalizedLocation);
                     manifests.push(manifest);
                 }
-                const depGraphEntry = dependencyGraphs[location];
+                const depGraphEntry = dependencyGraphs[normalizedLocation];
                 if (!depGraphEntry) {
-                    core.warning(`No dependency graph entry found for manifest location: ${location}`);
+                    core.warning(`No dependency graph entry found for manifest location: ${normalizedLocation}`);
                     return; // Skip this location if not found in dependencyGraphs
                 }
                 const directDependencies = depGraphEntry.explicitlyReferencedComponentIds;
                 if (directDependencies.includes(pkg.id)) {
                     (_a = manifests
-                        .find((manifest) => manifest.name == location)) === null || _a === void 0 ? void 0 : _a.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
+                        .find((manifest) => manifest.name == normalizedLocation)) === null || _a === void 0 ? void 0 : _a.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
                 }
                 else {
                     (_b = manifests
-                        .find((manifest) => manifest.name == location)) === null || _b === void 0 ? void 0 : _b.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
+                        .find((manifest) => manifest.name == normalizedLocation)) === null || _b === void 0 ? void 0 : _b.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
                 }
             });
         });
@@ -36237,9 +36239,6 @@ class ComponentDetection {
         for (const absPath in dependencyGraphs) {
             // Make the path relative to the baseDir
             let relPath = path_1.default.relative(baseDir, absPath).replace(/\\/g, '/');
-            // Ensure leading slash to represent repo root
-            if (!relPath.startsWith('/'))
-                relPath = '/' + relPath;
             normalized[relPath] = dependencyGraphs[absPath];
         }
         return normalized;

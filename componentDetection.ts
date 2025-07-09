@@ -153,28 +153,31 @@ export default class ComponentDetection {
   private static addPackagesToManifests(packages: Array<ComponentDetectionPackage>, manifests: Array<Manifest>, dependencyGraphs: DependencyGraphs): void {
     packages.forEach((pkg: ComponentDetectionPackage) => {
       pkg.locationsFoundAt.forEach((location: any) => {
-        if (!manifests.find((manifest: Manifest) => manifest.name == location)) {
-          const manifest = new Manifest(location, location);
+        // Use the normalized path (remove leading slash if present)
+        const normalizedLocation = location.startsWith('/') ? location.substring(1) : location;
+
+        if (!manifests.find((manifest: Manifest) => manifest.name == normalizedLocation)) {
+          const manifest = new Manifest(normalizedLocation, normalizedLocation);
           manifests.push(manifest);
         }
 
-        const depGraphEntry = dependencyGraphs[location];
+        const depGraphEntry = dependencyGraphs[normalizedLocation];
         if (!depGraphEntry) {
-          core.warning(`No dependency graph entry found for manifest location: ${location}`);
+          core.warning(`No dependency graph entry found for manifest location: ${normalizedLocation}`);
           return; // Skip this location if not found in dependencyGraphs
         }
 
         const directDependencies = depGraphEntry.explicitlyReferencedComponentIds;
         if (directDependencies.includes(pkg.id)) {
           manifests
-            .find((manifest: Manifest) => manifest.name == location)
+            .find((manifest: Manifest) => manifest.name == normalizedLocation)
             ?.addDirectDependency(
               pkg,
               ComponentDetection.getDependencyScope(pkg)
             );
         } else {
           manifests
-            .find((manifest: Manifest) => manifest.name == location)
+            .find((manifest: Manifest) => manifest.name == normalizedLocation)
             ?.addIndirectDependency(
               pkg,
               ComponentDetection.getDependencyScope(pkg)
@@ -283,8 +286,6 @@ export default class ComponentDetection {
     for (const absPath in dependencyGraphs) {
       // Make the path relative to the baseDir
       let relPath = path.relative(baseDir, absPath).replace(/\\/g, '/');
-      // Ensure leading slash to represent repo root
-      if (!relPath.startsWith('/')) relPath = '/' + relPath;
       normalized[relPath] = dependencyGraphs[absPath];
     }
     return normalized;
