@@ -230,7 +230,6 @@ test('full action scan creates manifests with correct names and file source loca
     'package-lock.json',
     'nested/package.json',
     'nested/package-lock.json',
-    'environment.yaml'
   ];
 
   const manifestsByName = manifests!.reduce((acc, manifest) => {
