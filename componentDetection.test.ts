@@ -198,12 +198,18 @@ describe('normalizeDependencyGraphPaths with real output.json', () => {
     const dependencyGraphs = output.dependencyGraphs;
     // Use the same filePath as the action default (".")
     const normalized = ComponentDetection.normalizeDependencyGraphPaths(dependencyGraphs, 'test');
-    // Root level manifests should not have leading slashes
+
+    // Should contain root level manifests without leading slashes
     expect(Object.keys(normalized)).toContain('package.json');
     expect(Object.keys(normalized)).toContain('package-lock.json');
-    // All keys should now be relative to the repo root (cwd) and start with '/'
+
+    // Should contain nested manifests with relative paths (no leading slashes)
+    expect(Object.keys(normalized)).toContain('nested/package.json');
+    expect(Object.keys(normalized)).toContain('nested/package-lock.json');
+
+    // All keys should be relative paths without leading slashes
     for (const key of Object.keys(normalized)) {
-      expect(key.startsWith('/')).toBe(true);
+      expect(key.startsWith('/')).toBe(false); // No leading slashes
       expect(key).not.toMatch(/^\w:\\|^\/\/|^\.{1,2}\//); // Not windows absolute, not network, not relative
     }
   });
