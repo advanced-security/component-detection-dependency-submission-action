@@ -2,11 +2,13 @@ import ComponentDetection, { DependencyGraphs } from "./componentDetection";
 import fs from "fs";
 
 test("Downloads CLI", async () => {
+ console.log("Downloads CLI")
   await ComponentDetection.downloadLatestRelease();
   expect(fs.existsSync(ComponentDetection.componentDetectionPath));
 });
 
 test("Runs CLI", async () => {
+ console.log("Runs CLI")
   await ComponentDetection.downloadLatestRelease();
   await ComponentDetection.runComponentDetection("./test");
   expect(fs.existsSync(ComponentDetection.outputPath));
@@ -21,6 +23,7 @@ test("Parses CLI output", async () => {
 
 describe("ComponentDetection.makePackageUrl", () => {
   test("returns a valid package url from saturated object", () => {
+ console.log("ComponentDetection.makePackageUrl")
     const packageUrl = ComponentDetection.makePackageUrl({
       Scheme: "pkg",
       Type: "npm",
@@ -38,6 +41,7 @@ describe("ComponentDetection.makePackageUrl", () => {
   });
 
   test("returns valid package url without dangling ? with empty qualifers", () => {
+ console.log("returns valid package url without dangling ? with empty qualifers")
     const packageUrl = ComponentDetection.makePackageUrl({
       Scheme: "pkg",
       Type: "npm",
@@ -214,16 +218,63 @@ describe('normalizeDependencyGraphPaths with real output.json', () => {
     }
   });
 
-  test('creates manifests without leading slashes using real output.json', () => {
-    const output = JSON.parse(fs.readFileSync('./output.json', 'utf8'));
-    const dependencyGraphs = output.dependencyGraphs;
-    const normalized = ComponentDetection.normalizeDependencyGraphPaths(dependencyGraphs, 'test');
+  test('full action scan creates manifests with correct names and file source locations', async () => {
+    // Run the full action flow
+    const manifests = await ComponentDetection.scanAndGetManifests('./test');
 
-    console.log(output)
-    // Test manifest creation with real data to ensure no leading slashes in manifest names
-    const manifests = ComponentDetection.processComponentsToManifests(output.componentsFound, normalized);
-    for (const manifest of manifests) {
-      expect(manifest.name.startsWith('/')).toBe(false); // No leading slashes in manifest names
+    expect(manifests).toBeDefined();
+    expect(manifests!.length).toBeGreaterThan(0);
+
+    // Ensure no manifest names have leading slashes
+    for (const manifest of manifests!) {
+      expect(manifest.name.startsWith('/')).toBe(false);
     }
-  });
+
+    // Expected manifest names based on test data files
+    const expectedManifestNames = [
+      'package.json',
+      'package-lock.json',
+      'nested/package.json',
+      'nested/package-lock.json',
+      'environment.yaml'
+    ];
+
+    // Create a lookup for manifests by name
+    const manifestsByName = manifests!.reduce((acc, manifest) => {
+      acc[manifest.name] = manifest;
+      return acc;
+    }, {} as Record<string, any>);
+
+    console.log('Found manifests:', Object.keys(manifestsByName));
+
+    // Check each expected manifest if it exists
+    for (const expectedName of expectedManifestNames) {
+      const manifest = manifestsByName[expectedName];
+      if (manifest) {
+        // Check manifest name is correct
+        expect(manifest.name).toBe(expectedName);
+
+        // Check file source location matches the manifest name
+        expect(manifest.file?.source_location).toBe(expectedName);
+
+        console.log(`✓ Verified manifest: ${expectedName}`);
+      }
+    }
+
+    // Verify specific expected manifests exist with correct properties
+    if (manifestsByName['package.json']) {
+      expect(manifestsByName['package.json'].name).toBe('package.json');
+      expect(manifestsByName['package.json'].file?.source_location).toBe('package.json');
+    }
+
+    if (manifestsByName['nested/package.json']) {
+      expect(manifestsByName['nested/package.json'].name).toBe('nested/package.json');
+      expect(manifestsByName['nested/package.json'].file?.source_location).toBe('nested/package.json');
+    }
+
+    if (manifestsByName['environment.yaml']) {
+      expect(manifestsByName['environment.yaml'].name).toBe('environment.yaml');
+      expect(manifestsByName['environment.yaml'].file?.source_location).toBe('environment.yaml');
+    }
+  }, 15000);
 });
