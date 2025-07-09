@@ -86,12 +86,12 @@ describe("ComponentDetection.processComponentsToManifests", () => {
         },
         isDevelopmentDependency: false,
         topLevelReferrers: [], // Empty = direct dependency
-        locationsFoundAt: ["/package.json"]
+        locationsFoundAt: ["package.json"]
       }
     ];
 
     const dependencyGraphs: DependencyGraphs = {
-      "/package.json": {
+      "package.json": {
         graph: { "test-package": null },
         explicitlyReferencedComponentIds: ["test-package 1.0.0 - npm"],
         developmentDependencies: [],
@@ -102,7 +102,7 @@ describe("ComponentDetection.processComponentsToManifests", () => {
     const manifests = ComponentDetection.processComponentsToManifests(componentsFound, dependencyGraphs);
 
     expect(manifests).toHaveLength(1);
-    expect(manifests[0].name).toBe("/package.json");
+    expect(manifests[0].name).toBe("package.json");
     expect(manifests[0].directDependencies()).toHaveLength(1);
     expect(manifests[0].indirectDependencies()).toHaveLength(0);
     expect(manifests[0].countDependencies()).toBe(1);
@@ -135,12 +135,12 @@ describe("ComponentDetection.processComponentsToManifests", () => {
             }
           }
         ],
-        locationsFoundAt: ["/package.json"]
+        locationsFoundAt: ["package.json"]
       }
     ];
 
     const dependencyGraphs: DependencyGraphs = {
-      "/package.json": {
+      "package.json": {
         graph: { "parent-package": null },
         explicitlyReferencedComponentIds: [],
         developmentDependencies: [],
@@ -151,7 +151,7 @@ describe("ComponentDetection.processComponentsToManifests", () => {
     const manifests = ComponentDetection.processComponentsToManifests(componentsFound, dependencyGraphs);
 
     expect(manifests).toHaveLength(1);
-    expect(manifests[0].name).toBe("/package.json");
+    expect(manifests[0].name).toBe("package.json");
     expect(manifests[0].directDependencies()).toHaveLength(0);
     expect(manifests[0].indirectDependencies()).toHaveLength(1);
     expect(manifests[0].countDependencies()).toBe(1);
@@ -184,10 +184,11 @@ describe('normalizeDependencyGraphPaths', () => {
     const normalized = ComponentDetection.normalizeDependencyGraphPaths(dependencyGraphs, filePathInput);
     // Restore process.cwd
     (process as any).cwd = originalCwd;
-    expect(Object.keys(normalized)).toContain('/a/package.json');
-    expect(Object.keys(normalized)).toContain('/b/package.json');
-    expect(normalized['/a/package.json'].graph).toEqual({ 'foo': null });
-    expect(normalized['/b/package.json'].graph).toEqual({ 'bar': null });
+    expect(Object.keys(normalized)).toContain('a/package.json');
+    expect(Object.keys(normalized)).toContain('b/package.json');
+    expect(normalized['a/package.json'].graph).toEqual({ 'foo': null });
+    expect(normalized['b/package.json'].graph).toEqual({ 'bar': null });
+    console.log(normalized)
   });
 });
 

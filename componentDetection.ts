@@ -283,8 +283,6 @@ export default class ComponentDetection {
     for (const absPath in dependencyGraphs) {
       // Make the path relative to the baseDir
       let relPath = path.relative(baseDir, absPath).replace(/\\/g, '/');
-      // Ensure leading slash to represent repo root
-      if (!relPath.startsWith('/')) relPath = '/' + relPath;
       normalized[relPath] = dependencyGraphs[absPath];
     }
     return normalized;
