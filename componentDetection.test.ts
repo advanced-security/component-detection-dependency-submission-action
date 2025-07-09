@@ -188,7 +188,7 @@ describe('normalizeDependencyGraphPaths', () => {
     expect(Object.keys(normalized)).toContain('b/package.json');
     expect(normalized['a/package.json'].graph).toEqual({ 'foo': null });
     expect(normalized['b/package.json'].graph).toEqual({ 'bar': null });
-    console.log(normalized)
+    console.log(normalized);
   });
 });
 
@@ -211,6 +211,19 @@ describe('normalizeDependencyGraphPaths with real output.json', () => {
     for (const key of Object.keys(normalized)) {
       expect(key.startsWith('/')).toBe(false); // No leading slashes
       expect(key).not.toMatch(/^\w:\\|^\/\/|^\.{1,2}\//); // Not windows absolute, not network, not relative
+    }
+  });
+
+  test('creates manifests without leading slashes using real output.json', () => {
+    const output = JSON.parse(fs.readFileSync('./output.json', 'utf8'));
+    const dependencyGraphs = output.dependencyGraphs;
+    const normalized = ComponentDetection.normalizeDependencyGraphPaths(dependencyGraphs, 'test');
+
+    console.log(output)
+    // Test manifest creation with real data to ensure no leading slashes in manifest names
+    const manifests = ComponentDetection.processComponentsToManifests(output.componentsFound, normalized);
+    for (const manifest of manifests) {
+      expect(manifest.name.startsWith('/')).toBe(false); // No leading slashes in manifest names
     }
   });
 });
