@@ -35,7 +35,7 @@ async function run() {
     // Also set other environment variables that the toolkit might expect
     process.env.GITHUB_REPOSITORY = githubRepository;
     process.env.GITHUB_API_URL = 'https://api.github.com';
-    
+
     // The dependency-submission-toolkit might expect these GitHub Actions environment variables
     process.env.GITHUB_SERVER_URL = 'https://github.com';
     process.env.GITHUB_GRAPHQL_URL = 'https://api.github.com/graphql';
