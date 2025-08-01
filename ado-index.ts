@@ -16,17 +16,17 @@ async function run() {
     // Validate required inputs
     const githubRepository = platform.input.getInput("githubRepository");
     const githubToken = platform.input.getInput("token");
-    
+
     if (!githubRepository) {
       platform.logger.setFailed("githubRepository input is required. Please provide the GitHub repository in format 'owner/repo'");
       return;
     }
-    
+
     if (!githubToken) {
       platform.logger.setFailed("token input is required. Please provide a GitHub Personal Access Token with 'Contents' repository permissions");
       return;
     }
-    
+
     platform.logger.debug(`GitHub Repository: ${githubRepository}`);
     platform.logger.debug(`GitHub Token provided: ${githubToken ? 'Yes' : 'No'}`);
 

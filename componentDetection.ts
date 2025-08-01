@@ -44,18 +44,18 @@ export default class ComponentDetection {
     try {
       this.platform.logger.debug(`Downloading latest release for ${process.platform}`);
       const downloadURL = await this.getLatestReleaseURL();
-      
+
       if (!downloadURL) {
         throw new Error(`No download URL found for platform: ${process.platform}`);
       }
-      
+
       this.platform.logger.debug(`Download URL: ${downloadURL}`);
-      
+
       const response = await fetch(new URL(downloadURL));
       if (!response.ok) {
         throw new Error(`Failed to download component-detection: ${response.status} ${response.statusText}`);
       }
-      
+
       const blob = await response.blob();
       const arrayBuffer = await blob.arrayBuffer();
       const buffer = new Uint8Array(arrayBuffer);
@@ -63,12 +63,12 @@ export default class ComponentDetection {
       // Write the blob to a file
       this.platform.logger.debug(`Writing binary to file ${this.componentDetectionPath}`);
       fs.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
-      
+
       // Verify the file was created and is executable
       if (!fs.existsSync(this.componentDetectionPath)) {
         throw new Error(`Failed to create component-detection executable at ${this.componentDetectionPath}`);
       }
-      
+
       this.platform.logger.debug(`Successfully downloaded and saved component-detection to ${this.componentDetectionPath}`);
     } catch (error: any) {
       this.platform.logger.error(`Error downloading component-detection: ${error.message}`);
@@ -104,12 +104,12 @@ export default class ComponentDetection {
 
     try {
       await exec.exec(command);
-      
+
       // Verify the output file was created
       if (!fs.existsSync(this.outputPath)) {
         throw new Error(`Component detection completed but output file ${this.outputPath} was not created`);
       }
-      
+
       this.platform.logger.debug(`Component detection completed successfully. Output file: ${this.outputPath}`);
     } catch (error: any) {
       this.platform.logger.error(`Component detection execution failed: ${error.message}`);
@@ -129,18 +129,18 @@ export default class ComponentDetection {
 
   public static async getManifestsFromResults(): Promise<Manifest[] | undefined> {
     this.platform.logger.info("Getting manifests from results");
-    
+
     if (!fs.existsSync(this.outputPath)) {
       throw new Error(`Output file ${this.outputPath} does not exist. Component detection may have failed.`);
     }
-    
+
     try {
       const results = await fs.readFileSync(this.outputPath, 'utf8');
       if (!results.trim()) {
         this.platform.logger.warning(`Output file ${this.outputPath} is empty`);
         return [];
       }
-      
+
       var json: any = JSON.parse(results);
       let dependencyGraphs: DependencyGraphs = this.normalizeDependencyGraphPaths(json.dependencyGraphs, this.platform.input.getInput('filePath'));
       return this.processComponentsToManifests(json.componentsFound, dependencyGraphs);
@@ -347,9 +347,9 @@ export default class ComponentDetection {
 
     // For accessing public repositories, don't use auth if no token is provided
     // This prevents "Bad credentials" errors when accessing public repos
-    const octokitConfig: any = { 
-      baseUrl: githubAPIURL, 
-      request: { fetch: fetch}, 
+    const octokitConfig: any = {
+      baseUrl: githubAPIURL,
+      request: { fetch: fetch},
       log: {
         debug: this.platform.logger.debug,
         info: this.platform.logger.info,
@@ -374,10 +374,10 @@ export default class ComponentDetection {
 
       var downloadURL: string = "";
       const assetName = process.platform === "win32" ? "component-detection-win-x64.exe" : "component-detection-linux-x64";
-      
+
       this.platform.logger.debug(`Looking for asset: ${assetName}`);
       this.platform.logger.debug(`Available assets: ${latestRelease.data.assets.map(a => a.name).join(', ')}`);
-      
+
       latestRelease.data.assets.forEach((asset: any) => {
         if (asset.name === assetName) {
           downloadURL = asset.browser_download_url;
