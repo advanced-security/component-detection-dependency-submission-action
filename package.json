@@ -9,7 +9,7 @@
     "prepare": "ncc build index.ts -o dist --source-map --license licenses.txt",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "all": "npm run lint && npm run prepare && npm run test",
-    "ado:build": "ncc build ado-index.ts -o ado-dist --source-map --license licenses.txt --target es2020 && node -e \"require('fs').copyFileSync('ado-dist/index.js', 'component-detection-github-submission-task/index.js')\"",
+    "ado:build": "ncc build ado-index.ts -o ado-dist --source-map --license licenses.txt --target es2020 && node scripts/convert-to-cjs.cjs",
     "ado:package": "tfx extension create --manifest-globs vss-extension.json",
     "ado:all": "npm run ado:build && npm run ado:package"
   },

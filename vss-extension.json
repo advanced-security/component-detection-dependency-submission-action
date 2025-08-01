@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "component-detection-github-submission-task",
   "name": "Component Detection for GitHub Dependency Submission",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "AdvancedSecurityOSS",
   "description": "Upload information about your dependencies to the GitHub dependency graph using Microsoft's component detection library",
   "public": false,
@@ -26,10 +26,6 @@
     },
   "files": [
     {
-      "path": "ado-dist",
-      "addressable": true
-    },
-    {
       "path": "component-detection-github-submission-task"
     },
     {
@@ -39,6 +35,11 @@
       "path": "ADO-README.md"
     }
   ],
+  "content": {
+    "details": {
+      "path": "ADO-README.md"
+    }
+  },
   "contributions": [
     {
       "id": "component-detection-github-submission-task",
