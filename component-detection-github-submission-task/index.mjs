@@ -1,4 +1,4 @@
-require('./sourcemap-register.cjs');const { createRequire: __WEBPACK_EXTERNAL_createRequire } = require("module");
+import './sourcemap-register.cjs';import { createRequire as __WEBPACK_EXTERNAL_createRequire } from "module";
 /******/ var __webpack_modules__ = ({
 
 /***/ 4914:

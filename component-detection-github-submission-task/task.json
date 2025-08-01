@@ -9,7 +9,7 @@
   "version": {
     "Major": 0,
     "Minor": 1,
-    "Patch": 5
+    "Patch": 7
   },
   "instanceNameFormat": "Component Detection $(filePath)",
   "groups": [
@@ -159,7 +159,7 @@
   ],
   "execution": {
     "Node20_1": {
-      "target": "index.js",
+      "target": "index.mjs",
       "argumentFormat": ""
     }
   },
