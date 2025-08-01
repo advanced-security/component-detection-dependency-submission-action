@@ -33,7 +33,14 @@ export class AzureDevOpsInputProvider implements IInputProvider {
   getInput(name: string): string {
     // ADO task inputs are available as environment variables with INPUT_ prefix
     const envName = `INPUT_${name.toUpperCase().replace(/-/g, '_')}`;
-    return process.env[envName] || '';
+    const value = process.env[envName] || '';
+    
+    // Special handling for token input - also check GITHUB_TOKEN for backward compatibility
+    if (name === 'token' && !value) {
+      return process.env['GITHUB_TOKEN'] || '';
+    }
+    
+    return value;
   }
 
   getBooleanInput(name: string): boolean {

@@ -35979,6 +35979,21 @@ function run() {
         var _a, _b, _c, _d, _e, _f;
         const platform = providers_1.PlatformProviderFactory.create(providers_1.Platform.AzureDevOps);
         try {
+            // Validate required inputs
+            const githubRepository = platform.input.getInput("githubRepository");
+            const githubToken = platform.input.getInput("token");
+            if (!githubRepository) {
+                platform.logger.setFailed("githubRepository input is required. Please provide the GitHub repository in format 'owner/repo'");
+                return;
+            }
+            if (!githubToken) {
+                platform.logger.setFailed("token input is required. Please provide a GitHub Personal Access Token with 'Contents' repository permissions");
+                return;
+            }
+            platform.logger.debug(`GitHub Repository: ${githubRepository}`);
+            platform.logger.debug(`GitHub Token provided: ${githubToken ? 'Yes' : 'No'}`);
+            // Set the GitHub token in environment for dependency-submission-toolkit
+            process.env.GITHUB_TOKEN = githubToken;
             let manifests = yield componentDetection_1.default.scanAndGetManifests(platform.input.getInput("filePath") || ".", platform);
             const correlatorInput = ((_a = platform.input.getInput("correlator")) === null || _a === void 0 ? void 0 : _a.trim()) || platform.context.getJobId();
             // Get detector configuration inputs
@@ -36143,15 +36158,29 @@ class ComponentDetection {
             try {
                 this.platform.logger.debug(`Downloading latest release for ${process.platform}`);
                 const downloadURL = yield this.getLatestReleaseURL();
-                const blob = yield (yield (0, cross_fetch_1.default)(new URL(downloadURL))).blob();
+                if (!downloadURL) {
+                    throw new Error(`No download URL found for platform: ${process.platform}`);
+                }
+                this.platform.logger.debug(`Download URL: ${downloadURL}`);
+                const response = yield (0, cross_fetch_1.default)(new URL(downloadURL));
+                if (!response.ok) {
+                    throw new Error(`Failed to download component-detection: ${response.status} ${response.statusText}`);
+                }
+                const blob = yield response.blob();
                 const arrayBuffer = yield blob.arrayBuffer();
                 const buffer = new Uint8Array(arrayBuffer);
                 // Write the blob to a file
                 this.platform.logger.debug(`Writing binary to file ${this.componentDetectionPath}`);
                 fs_1.default.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
+                // Verify the file was created and is executable
+                if (!fs_1.default.existsSync(this.componentDetectionPath)) {
+                    throw new Error(`Failed to create component-detection executable at ${this.componentDetectionPath}`);
+                }
+                this.platform.logger.debug(`Successfully downloaded and saved component-detection to ${this.componentDetectionPath}`);
             }
             catch (error) {
-                this.platform.logger.error(error);
+                this.platform.logger.error(`Error downloading component-detection: ${error.message}`);
+                throw error;
             }
         });
     }
@@ -36159,11 +36188,38 @@ class ComponentDetection {
     static runComponentDetection(path) {
         return __awaiter(this, void 0, void 0, function* () {
             this.platform.logger.info("Running component-detection");
+            // Verify the executable exists before trying to run it
+            if (!fs_1.default.existsSync(this.componentDetectionPath)) {
+                throw new Error(`Component detection executable not found at ${this.componentDetectionPath}. Download may have failed.`);
+            }
+            // Verify the file is executable (on Unix systems)
+            if (process.platform !== "win32") {
+                try {
+                    fs_1.default.accessSync(this.componentDetectionPath, fs_1.default.constants.X_OK);
+                }
+                catch (error) {
+                    this.platform.logger.warning(`Component detection file may not be executable. Attempting to set execute permissions.`);
+                    try {
+                        fs_1.default.chmodSync(this.componentDetectionPath, 0o755);
+                    }
+                    catch (chmodError) {
+                        this.platform.logger.error(`Failed to set execute permissions: ${chmodError}`);
+                    }
+                }
+            }
+            const command = `${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`;
+            this.platform.logger.debug(`Executing command: ${command}`);
             try {
-                yield exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`);
+                yield exec.exec(command);
+                // Verify the output file was created
+                if (!fs_1.default.existsSync(this.outputPath)) {
+                    throw new Error(`Component detection completed but output file ${this.outputPath} was not created`);
+                }
+                this.platform.logger.debug(`Component detection completed successfully. Output file: ${this.outputPath}`);
             }
             catch (error) {
-                this.platform.logger.error(error);
+                this.platform.logger.error(`Component detection execution failed: ${error.message}`);
+                throw error;
             }
         });
     }
@@ -36179,10 +36235,23 @@ class ComponentDetection {
     static getManifestsFromResults() {
         return __awaiter(this, void 0, void 0, function* () {
             this.platform.logger.info("Getting manifests from results");
-            const results = yield fs_1.default.readFileSync(this.outputPath, 'utf8');
-            var json = JSON.parse(results);
-            let dependencyGraphs = this.normalizeDependencyGraphPaths(json.dependencyGraphs, this.platform.input.getInput('filePath'));
-            return this.processComponentsToManifests(json.componentsFound, dependencyGraphs);
+            if (!fs_1.default.existsSync(this.outputPath)) {
+                throw new Error(`Output file ${this.outputPath} does not exist. Component detection may have failed.`);
+            }
+            try {
+                const results = yield fs_1.default.readFileSync(this.outputPath, 'utf8');
+                if (!results.trim()) {
+                    this.platform.logger.warning(`Output file ${this.outputPath} is empty`);
+                    return [];
+                }
+                var json = JSON.parse(results);
+                let dependencyGraphs = this.normalizeDependencyGraphPaths(json.dependencyGraphs, this.platform.input.getInput('filePath'));
+                return this.processComponentsToManifests(json.componentsFound, dependencyGraphs);
+            }
+            catch (error) {
+                this.platform.logger.error(`Failed to parse component detection results: ${error.message}`);
+                throw error;
+            }
         });
     }
     static processComponentsToManifests(componentsFound, dependencyGraphs) {
@@ -36355,12 +36424,23 @@ class ComponentDetection {
             if (ghesMode) {
                 githubToken = "";
             }
-            const octokit = new octokit_1.Octokit({ auth: githubToken, baseUrl: githubAPIURL, request: { fetch: cross_fetch_1.default }, log: {
+            // For accessing public repositories, don't use auth if no token is provided
+            // This prevents "Bad credentials" errors when accessing public repos
+            const octokitConfig = {
+                baseUrl: githubAPIURL,
+                request: { fetch: cross_fetch_1.default },
+                log: {
                     debug: this.platform.logger.debug,
                     info: this.platform.logger.info,
                     warn: this.platform.logger.warning,
                     error: this.platform.logger.error
-                }, });
+                }
+            };
+            // Only add auth if we have a token, since microsoft/component-detection is public
+            if (githubToken) {
+                octokitConfig.auth = githubToken;
+            }
+            const octokit = new octokit_1.Octokit(octokitConfig);
             const owner = "microsoft";
             const repo = "component-detection";
             this.platform.logger.debug("Attempting to download latest release from " + githubAPIURL);
@@ -36368,17 +36448,26 @@ class ComponentDetection {
                 const latestRelease = yield octokit.request("GET /repos/{owner}/{repo}/releases/latest", { owner, repo });
                 var downloadURL = "";
                 const assetName = process.platform === "win32" ? "component-detection-win-x64.exe" : "component-detection-linux-x64";
+                this.platform.logger.debug(`Looking for asset: ${assetName}`);
+                this.platform.logger.debug(`Available assets: ${latestRelease.data.assets.map(a => a.name).join(', ')}`);
                 latestRelease.data.assets.forEach((asset) => {
                     if (asset.name === assetName) {
                         downloadURL = asset.browser_download_url;
+                        this.platform.logger.debug(`Found matching asset: ${asset.name} -> ${downloadURL}`);
                     }
                 });
+                if (!downloadURL) {
+                    throw new Error(`No matching asset found for platform ${process.platform}. Expected asset name: ${assetName}`);
+                }
                 return downloadURL;
             }
             catch (error) {
-                this.platform.logger.error(error);
-                this.platform.logger.debug(error.message);
-                this.platform.logger.debug(error.stack);
+                this.platform.logger.error(`Failed to get latest release: ${error.message}`);
+                if (error.response) {
+                    this.platform.logger.debug(`HTTP Status: ${error.response.status}`);
+                    this.platform.logger.debug(`Response: ${JSON.stringify(error.response.data)}`);
+                }
+                this.platform.logger.debug(`Stack trace: ${error.stack}`);
                 throw new Error("Failed to download latest release");
             }
         });
@@ -36452,7 +36541,12 @@ class AzureDevOpsInputProvider {
     getInput(name) {
         // ADO task inputs are available as environment variables with INPUT_ prefix
         const envName = `INPUT_${name.toUpperCase().replace(/-/g, '_')}`;
-        return process.env[envName] || '';
+        const value = process.env[envName] || '';
+        // Special handling for token input - also check GITHUB_TOKEN for backward compatibility
+        if (name === 'token' && !value) {
+            return process.env['GITHUB_TOKEN'] || '';
+        }
+        return value;
     }
     getBooleanInput(name) {
         const value = this.getInput(name).toLowerCase();

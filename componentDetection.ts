@@ -44,15 +44,35 @@ export default class ComponentDetection {
     try {
       this.platform.logger.debug(`Downloading latest release for ${process.platform}`);
       const downloadURL = await this.getLatestReleaseURL();
-      const blob = await (await fetch(new URL(downloadURL))).blob();
+      
+      if (!downloadURL) {
+        throw new Error(`No download URL found for platform: ${process.platform}`);
+      }
+      
+      this.platform.logger.debug(`Download URL: ${downloadURL}`);
+      
+      const response = await fetch(new URL(downloadURL));
+      if (!response.ok) {
+        throw new Error(`Failed to download component-detection: ${response.status} ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
       const arrayBuffer = await blob.arrayBuffer();
       const buffer = new Uint8Array(arrayBuffer);
 
       // Write the blob to a file
       this.platform.logger.debug(`Writing binary to file ${this.componentDetectionPath}`);
       fs.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
+      
+      // Verify the file was created and is executable
+      if (!fs.existsSync(this.componentDetectionPath)) {
+        throw new Error(`Failed to create component-detection executable at ${this.componentDetectionPath}`);
+      }
+      
+      this.platform.logger.debug(`Successfully downloaded and saved component-detection to ${this.componentDetectionPath}`);
     } catch (error: any) {
-      this.platform.logger.error(error);
+      this.platform.logger.error(`Error downloading component-detection: ${error.message}`);
+      throw error;
     }
   }
 
@@ -60,10 +80,40 @@ export default class ComponentDetection {
   public static async runComponentDetection(path: string) {
     this.platform.logger.info("Running component-detection");
 
+    // Verify the executable exists before trying to run it
+    if (!fs.existsSync(this.componentDetectionPath)) {
+      throw new Error(`Component detection executable not found at ${this.componentDetectionPath}. Download may have failed.`);
+    }
+
+    // Verify the file is executable (on Unix systems)
+    if (process.platform !== "win32") {
+      try {
+        fs.accessSync(this.componentDetectionPath, fs.constants.X_OK);
+      } catch (error) {
+        this.platform.logger.warning(`Component detection file may not be executable. Attempting to set execute permissions.`);
+        try {
+          fs.chmodSync(this.componentDetectionPath, 0o755);
+        } catch (chmodError) {
+          this.platform.logger.error(`Failed to set execute permissions: ${chmodError}`);
+        }
+      }
+    }
+
+    const command = `${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`;
+    this.platform.logger.debug(`Executing command: ${command}`);
+
     try {
-      await exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`);
+      await exec.exec(command);
+      
+      // Verify the output file was created
+      if (!fs.existsSync(this.outputPath)) {
+        throw new Error(`Component detection completed but output file ${this.outputPath} was not created`);
+      }
+      
+      this.platform.logger.debug(`Component detection completed successfully. Output file: ${this.outputPath}`);
     } catch (error: any) {
-      this.platform.logger.error(error);
+      this.platform.logger.error(`Component detection execution failed: ${error.message}`);
+      throw error;
     }
   }
 
@@ -79,10 +129,25 @@ export default class ComponentDetection {
 
   public static async getManifestsFromResults(): Promise<Manifest[] | undefined> {
     this.platform.logger.info("Getting manifests from results");
-    const results = await fs.readFileSync(this.outputPath, 'utf8');
-    var json: any = JSON.parse(results);
-    let dependencyGraphs: DependencyGraphs = this.normalizeDependencyGraphPaths(json.dependencyGraphs, this.platform.input.getInput('filePath'));
-    return this.processComponentsToManifests(json.componentsFound, dependencyGraphs);
+    
+    if (!fs.existsSync(this.outputPath)) {
+      throw new Error(`Output file ${this.outputPath} does not exist. Component detection may have failed.`);
+    }
+    
+    try {
+      const results = await fs.readFileSync(this.outputPath, 'utf8');
+      if (!results.trim()) {
+        this.platform.logger.warning(`Output file ${this.outputPath} is empty`);
+        return [];
+      }
+      
+      var json: any = JSON.parse(results);
+      let dependencyGraphs: DependencyGraphs = this.normalizeDependencyGraphPaths(json.dependencyGraphs, this.platform.input.getInput('filePath'));
+      return this.processComponentsToManifests(json.componentsFound, dependencyGraphs);
+    } catch (error: any) {
+      this.platform.logger.error(`Failed to parse component detection results: ${error.message}`);
+      throw error;
+    }
   }
 
   public static processComponentsToManifests(componentsFound: any[], dependencyGraphs: DependencyGraphs): Manifest[] {
@@ -279,12 +344,26 @@ export default class ComponentDetection {
     if (ghesMode) {
       githubToken = "";
     }
-    const octokit = new Octokit({ auth: githubToken, baseUrl: githubAPIURL, request: { fetch: fetch}, log: {
-      debug: this.platform.logger.debug,
-      info: this.platform.logger.info,
-      warn: this.platform.logger.warning,
-      error: this.platform.logger.error
-    }, });
+
+    // For accessing public repositories, don't use auth if no token is provided
+    // This prevents "Bad credentials" errors when accessing public repos
+    const octokitConfig: any = { 
+      baseUrl: githubAPIURL, 
+      request: { fetch: fetch}, 
+      log: {
+        debug: this.platform.logger.debug,
+        info: this.platform.logger.info,
+        warn: this.platform.logger.warning,
+        error: this.platform.logger.error
+      }
+    };
+
+    // Only add auth if we have a token, since microsoft/component-detection is public
+    if (githubToken) {
+      octokitConfig.auth = githubToken;
+    }
+
+    const octokit = new Octokit(octokitConfig);
 
     const owner = "microsoft";
     const repo = "component-detection";
@@ -293,19 +372,31 @@ export default class ComponentDetection {
     try {
       const latestRelease = await octokit.request("GET /repos/{owner}/{repo}/releases/latest", {owner, repo});
 
-    var downloadURL: string = "";
-    const assetName = process.platform === "win32" ? "component-detection-win-x64.exe" : "component-detection-linux-x64";
-    latestRelease.data.assets.forEach((asset: any) => {
-      if (asset.name === assetName) {
-        downloadURL = asset.browser_download_url;
-      }
-    });
+      var downloadURL: string = "";
+      const assetName = process.platform === "win32" ? "component-detection-win-x64.exe" : "component-detection-linux-x64";
+      
+      this.platform.logger.debug(`Looking for asset: ${assetName}`);
+      this.platform.logger.debug(`Available assets: ${latestRelease.data.assets.map(a => a.name).join(', ')}`);
+      
+      latestRelease.data.assets.forEach((asset: any) => {
+        if (asset.name === assetName) {
+          downloadURL = asset.browser_download_url;
+          this.platform.logger.debug(`Found matching asset: ${asset.name} -> ${downloadURL}`);
+        }
+      });
 
-    return downloadURL;
+      if (!downloadURL) {
+        throw new Error(`No matching asset found for platform ${process.platform}. Expected asset name: ${assetName}`);
+      }
+
+      return downloadURL;
     } catch (error: any) {
-      this.platform.logger.error(error);
-      this.platform.logger.debug(error.message);
-      this.platform.logger.debug(error.stack);
+      this.platform.logger.error(`Failed to get latest release: ${error.message}`);
+      if (error.response) {
+        this.platform.logger.debug(`HTTP Status: ${error.response.status}`);
+        this.platform.logger.debug(`Response: ${JSON.stringify(error.response.data)}`);
+      }
+      this.platform.logger.debug(`Stack trace: ${error.stack}`);
       throw new Error("Failed to download latest release");
     }
   }
