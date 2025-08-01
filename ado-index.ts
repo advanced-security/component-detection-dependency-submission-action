@@ -32,6 +32,13 @@ async function run() {
 
     // Set the GitHub token in environment for dependency-submission-toolkit
     process.env.GITHUB_TOKEN = githubToken;
+    // Also set other environment variables that the toolkit might expect
+    process.env.GITHUB_REPOSITORY = githubRepository;
+    process.env.GITHUB_API_URL = 'https://api.github.com';
+    
+    // The dependency-submission-toolkit might expect these GitHub Actions environment variables
+    process.env.GITHUB_SERVER_URL = 'https://github.com';
+    process.env.GITHUB_GRAPHQL_URL = 'https://api.github.com/graphql';
 
     let manifests = await ComponentDetection.scanAndGetManifests(
       platform.input.getInput("filePath") || ".",
@@ -118,10 +125,31 @@ async function run() {
       snapshot.ref = snapshotRef;
     }
 
-    // Submit snapshot to GitHub (using the provided GitHub token)
-    await submitSnapshot(snapshot);
+    if (!manifests || manifests.length === 0) {
+      platform.logger.warning("No manifests found. Skipping dependency submission.");
+      return;
+    }
 
-    platform.logger.info("Component detection and dependency submission completed successfully");
+    platform.logger.info(`Submitting snapshot with ${snapshot.manifests.size} manifests to GitHub repository: ${repo.owner}/${repo.repo}`);
+    platform.logger.debug(`Snapshot SHA: ${snapshot.sha}`);
+    platform.logger.debug(`Snapshot Ref: ${snapshot.ref}`);
+    platform.logger.debug(`Correlator: ${correlatorInput}`);
+
+    // Submit snapshot to GitHub (using the provided GitHub token)
+    try {
+      await submitSnapshot(snapshot);
+      platform.logger.info("Component detection and dependency submission completed successfully");
+    } catch (submissionError: any) {
+      platform.logger.error(`Failed to submit snapshot to GitHub: ${submissionError.message}`);
+      if (submissionError.response) {
+        platform.logger.error(`HTTP Status: ${submissionError.response.status}`);
+        platform.logger.error(`Response: ${JSON.stringify(submissionError.response.data)}`);
+      }
+      if (submissionError.stack) {
+        platform.logger.debug(`Stack trace: ${submissionError.stack}`);
+      }
+      throw submissionError;
+    }
   } catch (error: any) {
     platform.logger.setFailed(`Component detection failed: ${error.message}`);
   }

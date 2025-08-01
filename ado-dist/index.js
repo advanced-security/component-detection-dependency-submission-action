@@ -35994,6 +35994,12 @@ function run() {
             platform.logger.debug(`GitHub Token provided: ${githubToken ? 'Yes' : 'No'}`);
             // Set the GitHub token in environment for dependency-submission-toolkit
             process.env.GITHUB_TOKEN = githubToken;
+            // Also set other environment variables that the toolkit might expect
+            process.env.GITHUB_REPOSITORY = githubRepository;
+            process.env.GITHUB_API_URL = 'https://api.github.com';
+            // The dependency-submission-toolkit might expect these GitHub Actions environment variables
+            process.env.GITHUB_SERVER_URL = 'https://github.com';
+            process.env.GITHUB_GRAPHQL_URL = 'https://api.github.com/graphql';
             let manifests = yield componentDetection_1.default.scanAndGetManifests(platform.input.getInput("filePath") || ".", platform);
             const correlatorInput = ((_a = platform.input.getInput("correlator")) === null || _a === void 0 ? void 0 : _a.trim()) || platform.context.getJobId();
             // Get detector configuration inputs
@@ -36059,9 +36065,30 @@ function run() {
             if (snapshotRef) {
                 snapshot.ref = snapshotRef;
             }
+            if (!manifests || manifests.length === 0) {
+                platform.logger.warning("No manifests found. Skipping dependency submission.");
+                return;
+            }
+            platform.logger.info(`Submitting snapshot with ${snapshot.manifests.size} manifests to GitHub repository: ${repo.owner}/${repo.repo}`);
+            platform.logger.debug(`Snapshot SHA: ${snapshot.sha}`);
+            platform.logger.debug(`Snapshot Ref: ${snapshot.ref}`);
+            platform.logger.debug(`Correlator: ${correlatorInput}`);
             // Submit snapshot to GitHub (using the provided GitHub token)
-            yield (0, dependency_submission_toolkit_1.submitSnapshot)(snapshot);
-            platform.logger.info("Component detection and dependency submission completed successfully");
+            try {
+                yield (0, dependency_submission_toolkit_1.submitSnapshot)(snapshot);
+                platform.logger.info("Component detection and dependency submission completed successfully");
+            }
+            catch (submissionError) {
+                platform.logger.error(`Failed to submit snapshot to GitHub: ${submissionError.message}`);
+                if (submissionError.response) {
+                    platform.logger.error(`HTTP Status: ${submissionError.response.status}`);
+                    platform.logger.error(`Response: ${JSON.stringify(submissionError.response.data)}`);
+                }
+                if (submissionError.stack) {
+                    platform.logger.debug(`Stack trace: ${submissionError.stack}`);
+                }
+                throw submissionError;
+            }
         }
         catch (error) {
             platform.logger.setFailed(`Component detection failed: ${error.message}`);
