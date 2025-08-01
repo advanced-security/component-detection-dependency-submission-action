@@ -1,6 +1,3 @@
-import * as core from '@actions/core';
-import * as github from '@actions/github';
-
 import {
   PackageCache,
   BuildTarget,
@@ -11,25 +8,29 @@ import {
 } from '@github/dependency-submission-toolkit';
 
 import ComponentDetection from './componentDetection';
+import { PlatformProviderFactory, Platform } from './src/providers';
 
 async function run() {
+  const platform = PlatformProviderFactory.create(Platform.GitHubActions);
+
   let manifests = await ComponentDetection.scanAndGetManifests(
-    core.getInput("filePath")
+    platform.input.getInput("filePath"),
+    platform
   );
   const correlatorInput =
-    core.getInput("correlator")?.trim() || github.context.job;
+    platform.input.getInput("correlator")?.trim() || platform.context.getJobId();
 
   // Get detector configuration inputs
-  const detectorName = core.getInput("detector-name")?.trim();
-  const detectorVersion = core.getInput("detector-version")?.trim();
-  const detectorUrl = core.getInput("detector-url")?.trim();
+  const detectorName = platform.input.getInput("detector-name")?.trim();
+  const detectorVersion = platform.input.getInput("detector-version")?.trim();
+  const detectorUrl = platform.input.getInput("detector-url")?.trim();
 
   // Validate that if any detector config is provided, all must be provided
   const hasAnyDetectorInput = detectorName || detectorVersion || detectorUrl;
   const hasAllDetectorInputs = detectorName && detectorVersion && detectorUrl;
 
   if (hasAnyDetectorInput && !hasAllDetectorInputs) {
-    core.setFailed(
+    platform.logger.setFailed(
       "If any detector configuration is provided (detector-name, detector-version, detector-url), all three must be provided."
     );
     return;
@@ -48,21 +49,57 @@ async function run() {
         url: "https://github.com/advanced-security/component-detection-dependency-submission-action",
       };
 
-  let snapshot = new Snapshot(detector, github.context, {
-    correlator: correlatorInput,
-    id: github.context.runId.toString(),
-  });
+  // Create snapshot with context appropriate for the platform
+  let snapshot: Snapshot;
 
-  core.debug(`Manifests: ${manifests?.length}`);
+  if (process.env.GITHUB_ACTIONS === 'true') {
+    // We're in GitHub Actions, use the actual github context
+    const { default: github } = await import('@actions/github');
+    snapshot = new Snapshot(detector, github.context, {
+      correlator: correlatorInput,
+      id: platform.context.getRunId().toString(),
+    });
+  } else {
+    // For ADO, we need to construct a minimal context object
+    // The dependency-submission-toolkit uses GitHub API, so we need GitHub org/repo
+    const repo = platform.context.getRepository();
+
+    // Create a minimal context that satisfies the Snapshot constructor
+    const mockContext = {
+      repo,
+      runId: platform.context.getRunId(),
+      sha: platform.context.getSha(),
+      ref: platform.context.getRef(),
+      workflow: platform.context.getJobId(),
+      job: platform.context.getJobId(),
+      actor: 'azure-devops',
+      action: 'component-detection',
+      runAttempt: 1,
+      runNumber: platform.context.getRunId(),
+      apiUrl: 'https://api.github.com',
+      graphqlUrl: 'https://api.github.com/graphql',
+      serverUrl: 'https://github.com',
+      payload: {},
+      issue: {},
+      eventName: 'push'
+    };
+
+    snapshot = new Snapshot(detector, mockContext as any, {
+      correlator: correlatorInput,
+      id: platform.context.getRunId().toString(),
+    });
+  }
+
+  platform.logger.debug(`Manifests: ${manifests?.length}`);
 
   manifests?.forEach((manifest) => {
-    core.debug(`Manifest: ${JSON.stringify(manifest)}`);
+    platform.logger.debug(`Manifest: ${JSON.stringify(manifest)}`);
     snapshot.addManifest(manifest);
   });
 
   // Override snapshot ref and sha if provided
-  const snapshotSha = core.getInput("snapshot-sha")?.trim();
-  const snapshotRef = core.getInput("snapshot-ref")?.trim();
+  const snapshotSha = platform.input.getInput("snapshot-sha")?.trim();
+  const snapshotRef = platform.input.getInput("snapshot-ref")?.trim();
 
   if (snapshotSha) {
     snapshot.sha = snapshotSha;

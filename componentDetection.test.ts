@@ -1,5 +1,13 @@
 import ComponentDetection, { DependencyGraphs } from "./componentDetection";
+import { PlatformProviderFactory, Platform } from "./src/providers";
 import fs from "fs";
+
+// Setup platform provider for tests
+beforeAll(() => {
+  process.env.GITHUB_ACTIONS = 'true'; // Simulate GitHub Actions environment
+  const platform = PlatformProviderFactory.create(Platform.GitHubActions);
+  ComponentDetection.setPlatformProvider(platform);
+});
 
 test("Downloads CLI", async () => {
   await ComponentDetection.downloadLatestRelease();

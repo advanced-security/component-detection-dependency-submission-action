@@ -13,6 +13,7 @@ export default [
   {
     ignores: [
       'dist/',
+      'ado-dist/',
       'coverage/',
       'output.json',
       '*.d.ts',
