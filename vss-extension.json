@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "component-detection-github-submission-task",
   "name": "Component Detection for GitHub Dependency Submission",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "AdvancedSecurityOSS",
   "description": "Upload information about your dependencies to the GitHub dependency graph using Microsoft's component detection library",
   "public": false,
