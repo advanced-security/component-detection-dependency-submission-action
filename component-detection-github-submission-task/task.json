@@ -9,7 +9,7 @@
   "version": {
     "Major": 0,
     "Minor": 1,
-    "Patch": 2
+    "Patch": 3
   },
   "instanceNameFormat": "Component Detection $(filePath)",
   "groups": [
@@ -159,7 +159,7 @@
   ],
   "execution": {
     "Node20_1": {
-      "target": "ado-dist/index.js",
+      "target": "index.js",
       "argumentFormat": ""
     }
   },
