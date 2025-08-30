@@ -46,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Component detection
-        uses: advanced-security/component-detection-dependency-submission-action@v0.0.3
+        uses: advanced-security/component-detection-dependency-submission-action@v0.1.0
 ```
 
 ## Azure DevOps Usage
