@@ -36515,21 +36515,19 @@ function run() {
                     const githubModule = yield Promise.resolve().then(() => __importStar(__nccwpck_require__(3228)));
                     platform.logger.debug(`GitHub module imported: ${typeof githubModule}`);
                     platform.logger.debug(`GitHub module keys: ${Object.keys(githubModule)}`);
-                    const { default: github } = githubModule;
-                    platform.logger.debug(`GitHub default export: ${typeof github}`);
-                    if (!github) {
-                        throw new Error('GitHub module default export is undefined');
-                    }
-                    if (!github.context) {
+                    // @actions/github exports named exports, not a default export
+                    const { context } = githubModule;
+                    platform.logger.debug(`GitHub context: ${typeof context}`);
+                    if (!context) {
                         throw new Error('GitHub context is undefined');
                     }
-                    platform.logger.debug(`GitHub context keys: ${Object.keys(github.context)}`);
-                    platform.logger.debug(`GitHub context repo: ${JSON.stringify(github.context.repo)}`);
-                    platform.logger.debug(`GitHub context job: ${github.context.job}`);
-                    platform.logger.debug(`GitHub context runId: ${github.context.runId}`);
-                    platform.logger.debug(`GitHub context sha: ${github.context.sha}`);
-                    platform.logger.debug(`GitHub context ref: ${github.context.ref}`);
-                    snapshot = new dependency_submission_toolkit_1.Snapshot(detector, github.context, {
+                    platform.logger.debug(`GitHub context keys: ${Object.keys(context)}`);
+                    platform.logger.debug(`GitHub context repo: ${JSON.stringify(context.repo)}`);
+                    platform.logger.debug(`GitHub context job: ${context.job}`);
+                    platform.logger.debug(`GitHub context runId: ${context.runId}`);
+                    platform.logger.debug(`GitHub context sha: ${context.sha}`);
+                    platform.logger.debug(`GitHub context ref: ${context.ref}`);
+                    snapshot = new dependency_submission_toolkit_1.Snapshot(detector, context, {
                         correlator: correlatorInput,
                         id: platform.context.getRunId().toString(),
                     });
