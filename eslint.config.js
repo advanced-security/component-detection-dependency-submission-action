@@ -18,6 +18,7 @@ export default [
       'output.json',
       '*.d.ts',
       'node_modules/',
+      'component-detection-github-submission-task/'
     ],
   },
 ];

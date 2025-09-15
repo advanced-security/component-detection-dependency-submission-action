@@ -12,7 +12,8 @@
     "ado:build": "ncc build ado-index.ts -o ado-dist --license licenses.txt --target es2020  && node -e \"require('fs').copyFileSync('ado-dist/index.js', 'component-detection-github-submission-task/index.mjs');",
     "ado:debugbuild": "ncc build ado-index.ts -o ado-dist --source-map --license licenses.txt --target es2020 && node -e \"require('fs').copyFileSync('ado-dist/index.js', 'component-detection-github-submission-task/index.mjs'); require('fs').copyFileSync('ado-dist/sourcemap-register.cjs', 'component-detection-github-submission-task/sourcemap-register.cjs')\"",
     "ado:package": "tfx extension create --manifest-globs vss-extension.json",
-    "ado:all": "npm run ado:build && npm run ado:package"
+    "ado:all": "npm run lint && npm run ado:build && npm run test && npm run ado:package",
+    "everything": "npm run all && npm run ado:all"
   },
   "repository": {
     "type": "git",

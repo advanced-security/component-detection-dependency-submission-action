@@ -36443,85 +36443,151 @@ const providers_1 = __nccwpck_require__(7486);
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e, _f;
-        const platform = providers_1.PlatformProviderFactory.create(providers_1.Platform.GitHubActions);
-        let manifests = yield componentDetection_1.default.scanAndGetManifests(platform.input.getInput("filePath"), platform);
-        const correlatorInput = ((_a = platform.input.getInput("correlator")) === null || _a === void 0 ? void 0 : _a.trim()) || platform.context.getJobId();
-        // Get detector configuration inputs
-        const detectorName = (_b = platform.input.getInput("detector-name")) === null || _b === void 0 ? void 0 : _b.trim();
-        const detectorVersion = (_c = platform.input.getInput("detector-version")) === null || _c === void 0 ? void 0 : _c.trim();
-        const detectorUrl = (_d = platform.input.getInput("detector-url")) === null || _d === void 0 ? void 0 : _d.trim();
-        // Validate that if any detector config is provided, all must be provided
-        const hasAnyDetectorInput = detectorName || detectorVersion || detectorUrl;
-        const hasAllDetectorInputs = detectorName && detectorVersion && detectorUrl;
-        if (hasAnyDetectorInput && !hasAllDetectorInputs) {
-            platform.logger.setFailed("If any detector configuration is provided (detector-name, detector-version, detector-url), all three must be provided.");
-            return;
-        }
-        // Use provided detector config or defaults
-        const detector = hasAllDetectorInputs
-            ? {
-                name: detectorName,
-                version: detectorVersion,
-                url: detectorUrl,
+        try {
+            console.log('Creating platform provider...');
+            const platform = providers_1.PlatformProviderFactory.create();
+            console.log(`Platform created: ${typeof platform}`);
+            if (!platform) {
+                throw new Error('Failed to create platform provider');
             }
-            : {
-                name: "Component Detection",
-                version: "0.0.1",
-                url: "https://github.com/advanced-security/component-detection-dependency-submission-action",
-            };
-        // Create snapshot with context appropriate for the platform
-        let snapshot;
-        if (process.env.GITHUB_ACTIONS === 'true') {
-            // We're in GitHub Actions, use the actual github context
-            const { default: github } = yield Promise.resolve().then(() => __importStar(__nccwpck_require__(3228)));
-            snapshot = new dependency_submission_toolkit_1.Snapshot(detector, github.context, {
-                correlator: correlatorInput,
-                id: platform.context.getRunId().toString(),
+            if (!platform.context) {
+                throw new Error('Platform provider created but context is undefined');
+            }
+            if (!platform.input) {
+                throw new Error('Platform provider created but input is undefined');
+            }
+            if (!platform.logger) {
+                throw new Error('Platform provider created but logger is undefined');
+            }
+            console.log(`Platform has context: ${!!platform.context}`);
+            console.log(`Platform has input: ${!!platform.input}`);
+            console.log(`Platform has logger: ${!!platform.logger}`);
+            // Test the context methods
+            try {
+                const repo = platform.context.getRepository();
+                console.log(`Repository: ${JSON.stringify(repo)}`);
+            }
+            catch (error) {
+                console.error(`Failed to get repository from context: ${error}`);
+                throw new Error(`Invalid platform context - cannot get repository: ${error}`);
+            }
+            let manifests = yield componentDetection_1.default.scanAndGetManifests(platform.input.getInput("filePath"), platform);
+            let correlatorInput;
+            try {
+                correlatorInput = ((_a = platform.input.getInput("correlator")) === null || _a === void 0 ? void 0 : _a.trim()) || platform.context.getJobId();
+                console.log(`Correlator input: ${correlatorInput}`);
+                if (!correlatorInput) {
+                    throw new Error('Could not obtain correlator input or job ID');
+                }
+            }
+            catch (error) {
+                console.error(`Failed to get correlator input: ${error}`);
+                throw new Error(`Cannot proceed without correlator input: ${error}`);
+            } // Get detector configuration inputs
+            const detectorName = (_b = platform.input.getInput("detector-name")) === null || _b === void 0 ? void 0 : _b.trim();
+            const detectorVersion = (_c = platform.input.getInput("detector-version")) === null || _c === void 0 ? void 0 : _c.trim();
+            const detectorUrl = (_d = platform.input.getInput("detector-url")) === null || _d === void 0 ? void 0 : _d.trim();
+            // Validate that if any detector config is provided, all must be provided
+            const hasAnyDetectorInput = detectorName || detectorVersion || detectorUrl;
+            const hasAllDetectorInputs = detectorName && detectorVersion && detectorUrl;
+            if (hasAnyDetectorInput && !hasAllDetectorInputs) {
+                platform.logger.setFailed("If any detector configuration is provided (detector-name, detector-version, detector-url), all three must be provided.");
+                return;
+            }
+            // Use provided detector config or defaults
+            const detector = hasAllDetectorInputs
+                ? {
+                    name: detectorName,
+                    version: detectorVersion,
+                    url: detectorUrl,
+                }
+                : {
+                    name: "Component Detection",
+                    version: "0.0.1",
+                    url: "https://github.com/advanced-security/component-detection-dependency-submission-action",
+                };
+            // Create snapshot with context appropriate for the platform
+            let snapshot;
+            if (process.env.GITHUB_ACTIONS === 'true') {
+                // We're in GitHub Actions, use the actual github context
+                try {
+                    platform.logger.debug('Attempting to import @actions/github');
+                    const githubModule = yield Promise.resolve().then(() => __importStar(__nccwpck_require__(3228)));
+                    platform.logger.debug(`GitHub module imported: ${typeof githubModule}`);
+                    platform.logger.debug(`GitHub module keys: ${Object.keys(githubModule)}`);
+                    const { default: github } = githubModule;
+                    platform.logger.debug(`GitHub default export: ${typeof github}`);
+                    if (!github) {
+                        throw new Error('GitHub module default export is undefined');
+                    }
+                    if (!github.context) {
+                        throw new Error('GitHub context is undefined');
+                    }
+                    platform.logger.debug(`GitHub context keys: ${Object.keys(github.context)}`);
+                    platform.logger.debug(`GitHub context repo: ${JSON.stringify(github.context.repo)}`);
+                    platform.logger.debug(`GitHub context job: ${github.context.job}`);
+                    platform.logger.debug(`GitHub context runId: ${github.context.runId}`);
+                    platform.logger.debug(`GitHub context sha: ${github.context.sha}`);
+                    platform.logger.debug(`GitHub context ref: ${github.context.ref}`);
+                    snapshot = new dependency_submission_toolkit_1.Snapshot(detector, github.context, {
+                        correlator: correlatorInput,
+                        id: platform.context.getRunId().toString(),
+                    });
+                }
+                catch (error) {
+                    platform.logger.error(`Failed to use GitHub Actions context: ${error}`);
+                    platform.logger.setFailed(`Cannot proceed without valid GitHub Actions context: ${error}`);
+                    return;
+                }
+            }
+            else {
+                // For ADO, we need to construct a minimal context object
+                // The dependency-submission-toolkit uses GitHub API, so we need GitHub org/repo
+                const repo = platform.context.getRepository();
+                // Create a minimal context that satisfies the Snapshot constructor
+                const mockContext = {
+                    repo,
+                    runId: platform.context.getRunId(),
+                    sha: platform.context.getSha(),
+                    ref: platform.context.getRef(),
+                    workflow: platform.context.getJobId(),
+                    job: platform.context.getJobId(),
+                    actor: 'azure-devops',
+                    action: 'component-detection',
+                    runAttempt: 1,
+                    runNumber: platform.context.getRunId(),
+                    apiUrl: 'https://api.github.com',
+                    graphqlUrl: 'https://api.github.com/graphql',
+                    serverUrl: 'https://github.com',
+                    payload: {},
+                    issue: {},
+                    eventName: 'push'
+                };
+                snapshot = new dependency_submission_toolkit_1.Snapshot(detector, mockContext, {
+                    correlator: correlatorInput,
+                    id: platform.context.getRunId().toString(),
+                });
+            }
+            platform.logger.debug(`Manifests: ${manifests === null || manifests === void 0 ? void 0 : manifests.length}`);
+            manifests === null || manifests === void 0 ? void 0 : manifests.forEach((manifest) => {
+                platform.logger.debug(`Manifest: ${JSON.stringify(manifest)}`);
+                snapshot.addManifest(manifest);
             });
+            // Override snapshot ref and sha if provided
+            const snapshotSha = (_e = platform.input.getInput("snapshot-sha")) === null || _e === void 0 ? void 0 : _e.trim();
+            const snapshotRef = (_f = platform.input.getInput("snapshot-ref")) === null || _f === void 0 ? void 0 : _f.trim();
+            if (snapshotSha) {
+                snapshot.sha = snapshotSha;
+            }
+            if (snapshotRef) {
+                snapshot.ref = snapshotRef;
+            }
+            (0, dependency_submission_toolkit_1.submitSnapshot)(snapshot);
         }
-        else {
-            // For ADO, we need to construct a minimal context object
-            // The dependency-submission-toolkit uses GitHub API, so we need GitHub org/repo
-            const repo = platform.context.getRepository();
-            // Create a minimal context that satisfies the Snapshot constructor
-            const mockContext = {
-                repo,
-                runId: platform.context.getRunId(),
-                sha: platform.context.getSha(),
-                ref: platform.context.getRef(),
-                workflow: platform.context.getJobId(),
-                job: platform.context.getJobId(),
-                actor: 'azure-devops',
-                action: 'component-detection',
-                runAttempt: 1,
-                runNumber: platform.context.getRunId(),
-                apiUrl: 'https://api.github.com',
-                graphqlUrl: 'https://api.github.com/graphql',
-                serverUrl: 'https://github.com',
-                payload: {},
-                issue: {},
-                eventName: 'push'
-            };
-            snapshot = new dependency_submission_toolkit_1.Snapshot(detector, mockContext, {
-                correlator: correlatorInput,
-                id: platform.context.getRunId().toString(),
-            });
+        catch (error) {
+            console.error('Error in run function:', error);
+            throw error;
         }
-        platform.logger.debug(`Manifests: ${manifests === null || manifests === void 0 ? void 0 : manifests.length}`);
-        manifests === null || manifests === void 0 ? void 0 : manifests.forEach((manifest) => {
-            platform.logger.debug(`Manifest: ${JSON.stringify(manifest)}`);
-            snapshot.addManifest(manifest);
-        });
-        // Override snapshot ref and sha if provided
-        const snapshotSha = (_e = platform.input.getInput("snapshot-sha")) === null || _e === void 0 ? void 0 : _e.trim();
-        const snapshotRef = (_f = platform.input.getInput("snapshot-ref")) === null || _f === void 0 ? void 0 : _f.trim();
-        if (snapshotSha) {
-            snapshot.sha = snapshotSha;
-        }
-        if (snapshotRef) {
-            snapshot.ref = snapshotRef;
-        }
-        (0, dependency_submission_toolkit_1.submitSnapshot)(snapshot);
     });
 }
 run();
