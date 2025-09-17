@@ -36443,47 +36443,36 @@ const providers_1 = __nccwpck_require__(7486);
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e, _f;
+        const platform = providers_1.PlatformProviderFactory.create();
         try {
-            console.log('Creating platform provider...');
-            const platform = providers_1.PlatformProviderFactory.create();
-            console.log(`Platform created: ${typeof platform}`);
-            if (!platform) {
-                throw new Error('Failed to create platform provider');
+            if (!platform || !platform.context || !platform.input || !platform.logger) {
+                throw new Error(`Failed to create platform provider with required components - platform: ${!!platform}, context: ${!!(platform === null || platform === void 0 ? void 0 : platform.context)}, input: ${!!(platform === null || platform === void 0 ? void 0 : platform.input)}, logger: ${!!(platform === null || platform === void 0 ? void 0 : platform.logger)}`);
             }
-            if (!platform.context) {
-                throw new Error('Platform provider created but context is undefined');
-            }
-            if (!platform.input) {
-                throw new Error('Platform provider created but input is undefined');
-            }
-            if (!platform.logger) {
-                throw new Error('Platform provider created but logger is undefined');
-            }
-            console.log(`Platform has context: ${!!platform.context}`);
-            console.log(`Platform has input: ${!!platform.input}`);
-            console.log(`Platform has logger: ${!!platform.logger}`);
-            // Test the context methods
-            try {
-                const repo = platform.context.getRepository();
-                console.log(`Repository: ${JSON.stringify(repo)}`);
-            }
-            catch (error) {
-                console.error(`Failed to get repository from context: ${error}`);
-                throw new Error(`Invalid platform context - cannot get repository: ${error}`);
-            }
-            let manifests = yield componentDetection_1.default.scanAndGetManifests(platform.input.getInput("filePath"), platform);
-            let correlatorInput;
-            try {
-                correlatorInput = ((_a = platform.input.getInput("correlator")) === null || _a === void 0 ? void 0 : _a.trim()) || platform.context.getJobId();
-                console.log(`Correlator input: ${correlatorInput}`);
-                if (!correlatorInput) {
-                    throw new Error('Could not obtain correlator input or job ID');
+            // ADO-specific validation and setup
+            if (platform.platform === providers_1.Platform.AzureDevOps) {
+                // We're in Azure DevOps, validate required inputs
+                const githubRepository = platform.input.getInput("githubRepository");
+                const githubToken = platform.input.getInput("token");
+                if (!githubRepository) {
+                    platform.logger.setFailed("githubRepository input is required. Please provide the GitHub repository in format 'owner/repo'");
+                    return;
                 }
+                if (!githubToken) {
+                    platform.logger.setFailed("token input is required. Please provide a GitHub Personal Access Token with 'Contents' repository permissions");
+                    return;
+                }
+                platform.logger.debug(`GitHub Repository: ${githubRepository}`);
+                platform.logger.debug(`GitHub Token provided: ${githubToken ? 'Yes' : 'No'}`);
+                // Set expectations for dependency-submission-toolkit (GHEC)
+                process.env.GITHUB_TOKEN = githubToken;
+                process.env.GITHUB_REPOSITORY = githubRepository;
+                process.env.GITHUB_API_URL = 'https://api.github.com';
+                process.env.GITHUB_SERVER_URL = 'https://github.com';
+                process.env.GITHUB_GRAPHQL_URL = 'https://api.github.com/graphql';
             }
-            catch (error) {
-                console.error(`Failed to get correlator input: ${error}`);
-                throw new Error(`Cannot proceed without correlator input: ${error}`);
-            } // Get detector configuration inputs
+            let manifests = yield componentDetection_1.default.scanAndGetManifests(platform.input.getInput("filePath") || ".", platform);
+            const correlatorInput = ((_a = platform.input.getInput("correlator")) === null || _a === void 0 ? void 0 : _a.trim()) || platform.context.getJobId();
+            // Get detector configuration inputs
             const detectorName = (_b = platform.input.getInput("detector-name")) === null || _b === void 0 ? void 0 : _b.trim();
             const detectorVersion = (_c = platform.input.getInput("detector-version")) === null || _c === void 0 ? void 0 : _c.trim();
             const detectorUrl = (_d = platform.input.getInput("detector-url")) === null || _d === void 0 ? void 0 : _d.trim();
@@ -36508,25 +36497,16 @@ function run() {
                 };
             // Create snapshot with context appropriate for the platform
             let snapshot;
-            if (process.env.GITHUB_ACTIONS === 'true') {
+            // Get repository info once (works for both platforms)
+            const repo = platform.context.getRepository();
+            if (platform.platform === providers_1.Platform.GitHubActions) {
                 // We're in GitHub Actions, use the actual github context
                 try {
-                    platform.logger.debug('Attempting to import @actions/github');
                     const githubModule = yield Promise.resolve().then(() => __importStar(__nccwpck_require__(3228)));
-                    platform.logger.debug(`GitHub module imported: ${typeof githubModule}`);
-                    platform.logger.debug(`GitHub module keys: ${Object.keys(githubModule)}`);
-                    // @actions/github exports named exports, not a default export
                     const { context } = githubModule;
-                    platform.logger.debug(`GitHub context: ${typeof context}`);
                     if (!context) {
                         throw new Error('GitHub context is undefined');
                     }
-                    platform.logger.debug(`GitHub context keys: ${Object.keys(context)}`);
-                    platform.logger.debug(`GitHub context repo: ${JSON.stringify(context.repo)}`);
-                    platform.logger.debug(`GitHub context job: ${context.job}`);
-                    platform.logger.debug(`GitHub context runId: ${context.runId}`);
-                    platform.logger.debug(`GitHub context sha: ${context.sha}`);
-                    platform.logger.debug(`GitHub context ref: ${context.ref}`);
                     snapshot = new dependency_submission_toolkit_1.Snapshot(detector, context, {
                         correlator: correlatorInput,
                         id: platform.context.getRunId().toString(),
@@ -36538,11 +36518,8 @@ function run() {
                     return;
                 }
             }
-            else {
-                // For ADO, we need to construct a minimal context object
-                // The dependency-submission-toolkit uses GitHub API, so we need GitHub org/repo
-                const repo = platform.context.getRepository();
-                // Create a minimal context that satisfies the Snapshot constructor
+            else if (platform.platform === providers_1.Platform.AzureDevOps) {
+                // Create a minimal GitHub context for ADO since dependency-submission-toolkit requires it
                 const mockContext = {
                     repo,
                     runId: platform.context.getRunId(),
@@ -36566,6 +36543,10 @@ function run() {
                     id: platform.context.getRunId().toString(),
                 });
             }
+            else {
+                platform.logger.setFailed(`Unsupported platform: ${platform.platform}`);
+                return;
+            }
             platform.logger.debug(`Manifests: ${manifests === null || manifests === void 0 ? void 0 : manifests.length}`);
             manifests === null || manifests === void 0 ? void 0 : manifests.forEach((manifest) => {
                 platform.logger.debug(`Manifest: ${JSON.stringify(manifest)}`);
@@ -36580,25 +36561,51 @@ function run() {
             if (snapshotRef) {
                 snapshot.ref = snapshotRef;
             }
-            (0, dependency_submission_toolkit_1.submitSnapshot)(snapshot);
+            if (!manifests || manifests.length === 0) {
+                platform.logger.warning("No manifests found. Skipping dependency submission.");
+                return;
+            }
+            platform.logger.info(`Submitting snapshot with ${snapshot.manifests.size} manifests to GitHub repository: ${repo.owner}/${repo.repo}`);
+            platform.logger.debug(`Snapshot - SHA: ${snapshot.sha}, Ref: ${snapshot.ref}, Correlator: ${correlatorInput}`);
+            // Submit snapshot to GitHub (using the provided GitHub token)
+            try {
+                yield (0, dependency_submission_toolkit_1.submitSnapshot)(snapshot);
+                platform.logger.info("Component detection and dependency submission completed successfully");
+            }
+            catch (submissionError) {
+                platform.logger.error(`Failed to submit snapshot to GitHub: ${submissionError.message}`);
+                if (submissionError.response) {
+                    platform.logger.error(`HTTP Status: ${submissionError.response.status}, Response: ${JSON.stringify(submissionError.response.data)}`);
+                }
+                if (submissionError.stack) {
+                    platform.logger.debug(`Stack trace: ${submissionError.stack}`);
+                }
+                throw submissionError;
+            }
         }
         catch (error) {
-            console.error('Error in run function:', error);
-            throw error;
+            platform.logger.setFailed(`Component detection failed: ${error.message}`);
         }
     });
 }
-run();
+run().catch((error) => {
+    console.error('Unhandled error:', error);
+    process.exit(1);
+});
 
 
 /***/ }),
 
 /***/ 5133:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.AzureDevOpsPlatformProvider = exports.AzureDevOpsContextProvider = exports.AzureDevOpsInputProvider = exports.AzureDevOpsLoggerProvider = void 0;
+// Note: Import azure-pipelines-task-lib when building for ADO
+// For now, we'll use process.env and console for basic functionality
+// import * as tl from 'azure-pipelines-task-lib/task';
+const interfaces_1 = __nccwpck_require__(8356);
 class AzureDevOpsLoggerProvider {
     debug(message) {
         if (process.env.SYSTEM_DEBUG === 'true') {
@@ -36678,6 +36685,7 @@ class AzureDevOpsPlatformProvider {
         this.logger = new AzureDevOpsLoggerProvider();
         this.input = new AzureDevOpsInputProvider();
         this.context = new AzureDevOpsContextProvider();
+        this.platform = interfaces_1.Platform.AzureDevOps;
     }
 }
 exports.AzureDevOpsPlatformProvider = AzureDevOpsPlatformProvider;
@@ -36726,6 +36734,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.GitHubActionsPlatformProvider = exports.GitHubActionsContextProvider = exports.GitHubActionsInputProvider = exports.GitHubActionsLoggerProvider = void 0;
 const core = __importStar(__nccwpck_require__(7484));
 const github = __importStar(__nccwpck_require__(3228));
+const interfaces_1 = __nccwpck_require__(8356);
 class GitHubActionsLoggerProvider {
     debug(message) {
         core.debug(message);
@@ -36782,6 +36791,7 @@ class GitHubActionsPlatformProvider {
         this.logger = new GitHubActionsLoggerProvider();
         this.input = new GitHubActionsInputProvider();
         this.context = new GitHubActionsContextProvider();
+        this.platform = interfaces_1.Platform.GitHubActions;
     }
 }
 exports.GitHubActionsPlatformProvider = GitHubActionsPlatformProvider;

@@ -1,6 +1,6 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import { ILoggerProvider, IInputProvider, IContextProvider, IPlatformProvider } from './interfaces';
+import { ILoggerProvider, IInputProvider, IContextProvider, IPlatformProvider, Platform } from './interfaces';
 
 export class GitHubActionsLoggerProvider implements ILoggerProvider {
   debug(message: string): void {
@@ -67,10 +67,12 @@ export class GitHubActionsPlatformProvider implements IPlatformProvider {
   public readonly logger: ILoggerProvider;
   public readonly input: IInputProvider;
   public readonly context: IContextProvider;
+  public readonly platform: Platform;
 
   constructor() {
     this.logger = new GitHubActionsLoggerProvider();
     this.input = new GitHubActionsInputProvider();
     this.context = new GitHubActionsContextProvider();
+    this.platform = Platform.GitHubActions;
   }
 }

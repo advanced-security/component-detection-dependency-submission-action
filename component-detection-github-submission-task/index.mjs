@@ -35954,155 +35954,6 @@ function wrappy (fn, cb) {
 
 /***/ }),
 
-/***/ 7957:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const componentDetection_1 = __importDefault(__nccwpck_require__(3202));
-const providers_1 = __nccwpck_require__(7486);
-const dependency_submission_toolkit_1 = __nccwpck_require__(3323);
-function run() {
-    return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e, _f;
-        const platform = providers_1.PlatformProviderFactory.create(providers_1.Platform.AzureDevOps);
-        try {
-            // Validate required inputs
-            const githubRepository = platform.input.getInput("githubRepository");
-            const githubToken = platform.input.getInput("token");
-            if (!githubRepository) {
-                platform.logger.setFailed("githubRepository input is required. Please provide the GitHub repository in format 'owner/repo'");
-                return;
-            }
-            if (!githubToken) {
-                platform.logger.setFailed("token input is required. Please provide a GitHub Personal Access Token with 'Contents' repository permissions");
-                return;
-            }
-            platform.logger.debug(`GitHub Repository: ${githubRepository}`);
-            platform.logger.debug(`GitHub Token provided: ${githubToken ? 'Yes' : 'No'}`);
-            // Set the GitHub token in environment for dependency-submission-toolkit
-            process.env.GITHUB_TOKEN = githubToken;
-            // Also set other environment variables that the toolkit might expect
-            process.env.GITHUB_REPOSITORY = githubRepository;
-            process.env.GITHUB_API_URL = 'https://api.github.com';
-            // The dependency-submission-toolkit might expect these GitHub Actions environment variables
-            process.env.GITHUB_SERVER_URL = 'https://github.com';
-            process.env.GITHUB_GRAPHQL_URL = 'https://api.github.com/graphql';
-            let manifests = yield componentDetection_1.default.scanAndGetManifests(platform.input.getInput("filePath") || ".", platform);
-            const correlatorInput = ((_a = platform.input.getInput("correlator")) === null || _a === void 0 ? void 0 : _a.trim()) || platform.context.getJobId();
-            // Get detector configuration inputs
-            const detectorName = (_b = platform.input.getInput("detector-name")) === null || _b === void 0 ? void 0 : _b.trim();
-            const detectorVersion = (_c = platform.input.getInput("detector-version")) === null || _c === void 0 ? void 0 : _c.trim();
-            const detectorUrl = (_d = platform.input.getInput("detector-url")) === null || _d === void 0 ? void 0 : _d.trim();
-            // Validate that if any detector config is provided, all must be provided
-            const hasAnyDetectorInput = detectorName || detectorVersion || detectorUrl;
-            const hasAllDetectorInputs = detectorName && detectorVersion && detectorUrl;
-            if (hasAnyDetectorInput && !hasAllDetectorInputs) {
-                platform.logger.setFailed("If any detector configuration is provided (detector-name, detector-version, detector-url), all three must be provided.");
-                return;
-            }
-            // Use provided detector config or defaults
-            const detector = hasAllDetectorInputs
-                ? {
-                    name: detectorName,
-                    version: detectorVersion,
-                    url: detectorUrl,
-                }
-                : {
-                    name: "Component Detection",
-                    version: "0.0.1",
-                    url: "https://github.com/advanced-security/component-detection-dependency-submission-action",
-                };
-            // For ADO, we need to construct a minimal context object
-            // The dependency-submission-toolkit uses GitHub API, so we need GitHub org/repo
-            const repo = platform.context.getRepository();
-            // Create a minimal context that satisfies the Snapshot constructor
-            const mockContext = {
-                repo,
-                runId: platform.context.getRunId(),
-                sha: platform.context.getSha(),
-                ref: platform.context.getRef(),
-                workflow: platform.context.getJobId(),
-                job: platform.context.getJobId(),
-                actor: 'azure-devops',
-                action: 'component-detection',
-                runAttempt: 1,
-                runNumber: platform.context.getRunId(),
-                apiUrl: 'https://api.github.com',
-                graphqlUrl: 'https://api.github.com/graphql',
-                serverUrl: 'https://github.com',
-                payload: {},
-                issue: {},
-                eventName: 'push'
-            };
-            let snapshot = new dependency_submission_toolkit_1.Snapshot(detector, mockContext, {
-                correlator: correlatorInput,
-                id: platform.context.getRunId().toString(),
-            });
-            platform.logger.debug(`Manifests: ${manifests === null || manifests === void 0 ? void 0 : manifests.length}`);
-            manifests === null || manifests === void 0 ? void 0 : manifests.forEach((manifest) => {
-                platform.logger.debug(`Manifest: ${JSON.stringify(manifest)}`);
-                snapshot.addManifest(manifest);
-            });
-            // Override snapshot ref and sha if provided
-            const snapshotSha = (_e = platform.input.getInput("snapshot-sha")) === null || _e === void 0 ? void 0 : _e.trim();
-            const snapshotRef = (_f = platform.input.getInput("snapshot-ref")) === null || _f === void 0 ? void 0 : _f.trim();
-            if (snapshotSha) {
-                snapshot.sha = snapshotSha;
-            }
-            if (snapshotRef) {
-                snapshot.ref = snapshotRef;
-            }
-            if (!manifests || manifests.length === 0) {
-                platform.logger.warning("No manifests found. Skipping dependency submission.");
-                return;
-            }
-            platform.logger.info(`Submitting snapshot with ${snapshot.manifests.size} manifests to GitHub repository: ${repo.owner}/${repo.repo}`);
-            platform.logger.debug(`Snapshot SHA: ${snapshot.sha}`);
-            platform.logger.debug(`Snapshot Ref: ${snapshot.ref}`);
-            platform.logger.debug(`Correlator: ${correlatorInput}`);
-            // Submit snapshot to GitHub (using the provided GitHub token)
-            try {
-                yield (0, dependency_submission_toolkit_1.submitSnapshot)(snapshot);
-                platform.logger.info("Component detection and dependency submission completed successfully");
-            }
-            catch (submissionError) {
-                platform.logger.error(`Failed to submit snapshot to GitHub: ${submissionError.message}`);
-                if (submissionError.response) {
-                    platform.logger.error(`HTTP Status: ${submissionError.response.status}`);
-                    platform.logger.error(`Response: ${JSON.stringify(submissionError.response.data)}`);
-                }
-                if (submissionError.stack) {
-                    platform.logger.debug(`Stack trace: ${submissionError.stack}`);
-                }
-                throw submissionError;
-            }
-        }
-        catch (error) {
-            platform.logger.setFailed(`Component detection failed: ${error.message}`);
-        }
-    });
-}
-run().catch((error) => {
-    console.error('Unhandled error:', error);
-    process.exit(1);
-});
-
-
-/***/ }),
-
 /***/ 3202:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -36536,12 +36387,225 @@ class ComponentDetectionPackage extends dependency_submission_toolkit_1.Package 
 
 /***/ }),
 
+/***/ 98:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const dependency_submission_toolkit_1 = __nccwpck_require__(3323);
+const componentDetection_1 = __importDefault(__nccwpck_require__(3202));
+const providers_1 = __nccwpck_require__(7486);
+function run() {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b, _c, _d, _e, _f;
+        const platform = providers_1.PlatformProviderFactory.create();
+        try {
+            if (!platform || !platform.context || !platform.input || !platform.logger) {
+                throw new Error(`Failed to create platform provider with required components - platform: ${!!platform}, context: ${!!(platform === null || platform === void 0 ? void 0 : platform.context)}, input: ${!!(platform === null || platform === void 0 ? void 0 : platform.input)}, logger: ${!!(platform === null || platform === void 0 ? void 0 : platform.logger)}`);
+            }
+            // ADO-specific validation and setup
+            if (platform.platform === providers_1.Platform.AzureDevOps) {
+                // We're in Azure DevOps, validate required inputs
+                const githubRepository = platform.input.getInput("githubRepository");
+                const githubToken = platform.input.getInput("token");
+                if (!githubRepository) {
+                    platform.logger.setFailed("githubRepository input is required. Please provide the GitHub repository in format 'owner/repo'");
+                    return;
+                }
+                if (!githubToken) {
+                    platform.logger.setFailed("token input is required. Please provide a GitHub Personal Access Token with 'Contents' repository permissions");
+                    return;
+                }
+                platform.logger.debug(`GitHub Repository: ${githubRepository}`);
+                platform.logger.debug(`GitHub Token provided: ${githubToken ? 'Yes' : 'No'}`);
+                // Set expectations for dependency-submission-toolkit (GHEC)
+                process.env.GITHUB_TOKEN = githubToken;
+                process.env.GITHUB_REPOSITORY = githubRepository;
+                process.env.GITHUB_API_URL = 'https://api.github.com';
+                process.env.GITHUB_SERVER_URL = 'https://github.com';
+                process.env.GITHUB_GRAPHQL_URL = 'https://api.github.com/graphql';
+            }
+            let manifests = yield componentDetection_1.default.scanAndGetManifests(platform.input.getInput("filePath") || ".", platform);
+            const correlatorInput = ((_a = platform.input.getInput("correlator")) === null || _a === void 0 ? void 0 : _a.trim()) || platform.context.getJobId();
+            // Get detector configuration inputs
+            const detectorName = (_b = platform.input.getInput("detector-name")) === null || _b === void 0 ? void 0 : _b.trim();
+            const detectorVersion = (_c = platform.input.getInput("detector-version")) === null || _c === void 0 ? void 0 : _c.trim();
+            const detectorUrl = (_d = platform.input.getInput("detector-url")) === null || _d === void 0 ? void 0 : _d.trim();
+            // Validate that if any detector config is provided, all must be provided
+            const hasAnyDetectorInput = detectorName || detectorVersion || detectorUrl;
+            const hasAllDetectorInputs = detectorName && detectorVersion && detectorUrl;
+            if (hasAnyDetectorInput && !hasAllDetectorInputs) {
+                platform.logger.setFailed("If any detector configuration is provided (detector-name, detector-version, detector-url), all three must be provided.");
+                return;
+            }
+            // Use provided detector config or defaults
+            const detector = hasAllDetectorInputs
+                ? {
+                    name: detectorName,
+                    version: detectorVersion,
+                    url: detectorUrl,
+                }
+                : {
+                    name: "Component Detection",
+                    version: "0.0.1",
+                    url: "https://github.com/advanced-security/component-detection-dependency-submission-action",
+                };
+            // Create snapshot with context appropriate for the platform
+            let snapshot;
+            // Get repository info once (works for both platforms)
+            const repo = platform.context.getRepository();
+            if (platform.platform === providers_1.Platform.GitHubActions) {
+                // We're in GitHub Actions, use the actual github context
+                try {
+                    const githubModule = yield Promise.resolve().then(() => __importStar(__nccwpck_require__(3228)));
+                    const { context } = githubModule;
+                    if (!context) {
+                        throw new Error('GitHub context is undefined');
+                    }
+                    snapshot = new dependency_submission_toolkit_1.Snapshot(detector, context, {
+                        correlator: correlatorInput,
+                        id: platform.context.getRunId().toString(),
+                    });
+                }
+                catch (error) {
+                    platform.logger.error(`Failed to use GitHub Actions context: ${error}`);
+                    platform.logger.setFailed(`Cannot proceed without valid GitHub Actions context: ${error}`);
+                    return;
+                }
+            }
+            else if (platform.platform === providers_1.Platform.AzureDevOps) {
+                // Create a minimal GitHub context for ADO since dependency-submission-toolkit requires it
+                const mockContext = {
+                    repo,
+                    runId: platform.context.getRunId(),
+                    sha: platform.context.getSha(),
+                    ref: platform.context.getRef(),
+                    workflow: platform.context.getJobId(),
+                    job: platform.context.getJobId(),
+                    actor: 'azure-devops',
+                    action: 'component-detection',
+                    runAttempt: 1,
+                    runNumber: platform.context.getRunId(),
+                    apiUrl: 'https://api.github.com',
+                    graphqlUrl: 'https://api.github.com/graphql',
+                    serverUrl: 'https://github.com',
+                    payload: {},
+                    issue: {},
+                    eventName: 'push'
+                };
+                snapshot = new dependency_submission_toolkit_1.Snapshot(detector, mockContext, {
+                    correlator: correlatorInput,
+                    id: platform.context.getRunId().toString(),
+                });
+            }
+            else {
+                platform.logger.setFailed(`Unsupported platform: ${platform.platform}`);
+                return;
+            }
+            platform.logger.debug(`Manifests: ${manifests === null || manifests === void 0 ? void 0 : manifests.length}`);
+            manifests === null || manifests === void 0 ? void 0 : manifests.forEach((manifest) => {
+                platform.logger.debug(`Manifest: ${JSON.stringify(manifest)}`);
+                snapshot.addManifest(manifest);
+            });
+            // Override snapshot ref and sha if provided
+            const snapshotSha = (_e = platform.input.getInput("snapshot-sha")) === null || _e === void 0 ? void 0 : _e.trim();
+            const snapshotRef = (_f = platform.input.getInput("snapshot-ref")) === null || _f === void 0 ? void 0 : _f.trim();
+            if (snapshotSha) {
+                snapshot.sha = snapshotSha;
+            }
+            if (snapshotRef) {
+                snapshot.ref = snapshotRef;
+            }
+            if (!manifests || manifests.length === 0) {
+                platform.logger.warning("No manifests found. Skipping dependency submission.");
+                return;
+            }
+            platform.logger.info(`Submitting snapshot with ${snapshot.manifests.size} manifests to GitHub repository: ${repo.owner}/${repo.repo}`);
+            platform.logger.debug(`Snapshot - SHA: ${snapshot.sha}, Ref: ${snapshot.ref}, Correlator: ${correlatorInput}`);
+            // Submit snapshot to GitHub (using the provided GitHub token)
+            try {
+                yield (0, dependency_submission_toolkit_1.submitSnapshot)(snapshot);
+                platform.logger.info("Component detection and dependency submission completed successfully");
+            }
+            catch (submissionError) {
+                platform.logger.error(`Failed to submit snapshot to GitHub: ${submissionError.message}`);
+                if (submissionError.response) {
+                    platform.logger.error(`HTTP Status: ${submissionError.response.status}, Response: ${JSON.stringify(submissionError.response.data)}`);
+                }
+                if (submissionError.stack) {
+                    platform.logger.debug(`Stack trace: ${submissionError.stack}`);
+                }
+                throw submissionError;
+            }
+        }
+        catch (error) {
+            platform.logger.setFailed(`Component detection failed: ${error.message}`);
+        }
+    });
+}
+run().catch((error) => {
+    console.error('Unhandled error:', error);
+    process.exit(1);
+});
+
+
+/***/ }),
+
 /***/ 5133:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.AzureDevOpsPlatformProvider = exports.AzureDevOpsContextProvider = exports.AzureDevOpsInputProvider = exports.AzureDevOpsLoggerProvider = void 0;
+// Note: Import azure-pipelines-task-lib when building for ADO
+// For now, we'll use process.env and console for basic functionality
+// import * as tl from 'azure-pipelines-task-lib/task';
+const interfaces_1 = __nccwpck_require__(8356);
 class AzureDevOpsLoggerProvider {
     debug(message) {
         if (process.env.SYSTEM_DEBUG === 'true') {
@@ -36621,6 +36685,7 @@ class AzureDevOpsPlatformProvider {
         this.logger = new AzureDevOpsLoggerProvider();
         this.input = new AzureDevOpsInputProvider();
         this.context = new AzureDevOpsContextProvider();
+        this.platform = interfaces_1.Platform.AzureDevOps;
     }
 }
 exports.AzureDevOpsPlatformProvider = AzureDevOpsPlatformProvider;
@@ -36669,6 +36734,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.GitHubActionsPlatformProvider = exports.GitHubActionsContextProvider = exports.GitHubActionsInputProvider = exports.GitHubActionsLoggerProvider = void 0;
 const core = __importStar(__nccwpck_require__(7484));
 const github = __importStar(__nccwpck_require__(3228));
+const interfaces_1 = __nccwpck_require__(8356);
 class GitHubActionsLoggerProvider {
     debug(message) {
         core.debug(message);
@@ -36725,6 +36791,7 @@ class GitHubActionsPlatformProvider {
         this.logger = new GitHubActionsLoggerProvider();
         this.input = new GitHubActionsInputProvider();
         this.context = new GitHubActionsContextProvider();
+        this.platform = interfaces_1.Platform.GitHubActions;
     }
 }
 exports.GitHubActionsPlatformProvider = GitHubActionsPlatformProvider;
@@ -53142,5 +53209,5 @@ module.exports = /*#__PURE__*/JSON.parse('[[[0,44],"disallowed_STD3_valid"],[[45
 /******/ // startup
 /******/ // Load entry module and return exports
 /******/ // This entry module is referenced by other modules so it can't be inlined
-/******/ var __webpack_exports__ = __nccwpck_require__(7957);
+/******/ var __webpack_exports__ = __nccwpck_require__(98);
 /******/ 

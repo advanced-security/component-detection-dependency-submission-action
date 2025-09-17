@@ -27,6 +27,7 @@ export interface IPlatformProvider {
     logger: ILoggerProvider;
     input: IInputProvider;
     context: IContextProvider;
+    platform: Platform;
 }
 export declare enum Platform {
     GitHubActions = "github-actions",

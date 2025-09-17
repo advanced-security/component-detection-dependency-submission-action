@@ -1,4 +1,4 @@
-import { ILoggerProvider, IInputProvider, IContextProvider, IPlatformProvider } from './interfaces';
+import { ILoggerProvider, IInputProvider, IContextProvider, IPlatformProvider, Platform } from './interfaces';
 export declare class GitHubActionsLoggerProvider implements ILoggerProvider {
     debug(message: string): void;
     info(message: string): void;
@@ -25,5 +25,6 @@ export declare class GitHubActionsPlatformProvider implements IPlatformProvider 
     readonly logger: ILoggerProvider;
     readonly input: IInputProvider;
     readonly context: IContextProvider;
+    readonly platform: Platform;
     constructor();
 }

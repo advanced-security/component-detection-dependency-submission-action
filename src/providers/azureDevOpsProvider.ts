@@ -1,7 +1,7 @@
 // Note: Import azure-pipelines-task-lib when building for ADO
 // For now, we'll use process.env and console for basic functionality
 // import * as tl from 'azure-pipelines-task-lib/task';
-import { ILoggerProvider, IInputProvider, IContextProvider, IPlatformProvider } from './interfaces';
+import { ILoggerProvider, IInputProvider, IContextProvider, IPlatformProvider, Platform } from './interfaces';
 
 export class AzureDevOpsLoggerProvider implements ILoggerProvider {
   debug(message: string): void {
@@ -95,10 +95,12 @@ export class AzureDevOpsPlatformProvider implements IPlatformProvider {
   public readonly logger: ILoggerProvider;
   public readonly input: IInputProvider;
   public readonly context: IContextProvider;
+  public readonly platform: Platform;
 
   constructor() {
     this.logger = new AzureDevOpsLoggerProvider();
     this.input = new AzureDevOpsInputProvider();
     this.context = new AzureDevOpsContextProvider();
+    this.platform = Platform.AzureDevOps;
   }
 }
