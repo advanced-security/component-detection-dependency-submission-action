@@ -16,6 +16,9 @@ async function run() {
 
     // ADO-specific validation and setup
     if (platform.platform === Platform.AzureDevOps) {
+      // Log debug environment status for troubleshooting
+      platform.logger.info(`[Debug Environment] SYSTEM_DEBUG: ${process.env.SYSTEM_DEBUG}, RUNNER_DEBUG: ${process.env.RUNNER_DEBUG}, DEBUG: ${process.env.DEBUG}`);
+
       // We're in Azure DevOps, validate required inputs
       const githubRepository = platform.input.getInput("githubRepository");
       const githubToken = platform.input.getInput("token");
@@ -132,12 +135,17 @@ async function run() {
       return;
     }
 
-    platform.logger.debug(`Manifests: ${manifests?.length}`);
+    // Debug snapshot creation
+    platform.logger.debug(`Snapshot created. Manifests property type: ${typeof snapshot.manifests}, value: ${snapshot.manifests}`);
+    platform.logger.debug(`Manifests to add: ${manifests?.length}`);
 
     manifests?.forEach((manifest) => {
       platform.logger.debug(`Manifest: ${JSON.stringify(manifest)}`);
       snapshot.addManifest(manifest);
     });
+
+    // Debug snapshot after adding manifests
+    platform.logger.debug(`After adding manifests - Snapshot manifests count: ${snapshot.manifests?.size || snapshot.manifests?.length || 'unknown'}`);
 
     // Override snapshot ref and sha if provided
     const snapshotSha = platform.input.getInput("snapshot-sha")?.trim();
@@ -156,8 +164,13 @@ async function run() {
       return;
     }
 
-    platform.logger.info(`Submitting snapshot with ${snapshot.manifests.size} manifests to GitHub repository: ${repo.owner}/${repo.repo}`);
+    // Log manifest count and snapshot details before submission
+    const manifestCount = manifests?.length || 0;
+    const snapshotManifestCount = snapshot.manifests?.size || snapshot.manifests?.length || 'unknown';
+
+    platform.logger.info(`Submitting snapshot with ${manifestCount} manifests (snapshot has ${snapshotManifestCount}) to GitHub repository: ${repo.owner}/${repo.repo}`);
     platform.logger.debug(`Snapshot - SHA: ${snapshot.sha}, Ref: ${snapshot.ref}, Correlator: ${correlatorInput}`);
+    platform.logger.debug(`Snapshot manifests type: ${typeof snapshot.manifests}, constructor: ${snapshot.manifests?.constructor?.name}`);
 
     // Submit snapshot to GitHub (using the provided GitHub token)
     try {

@@ -36442,7 +36442,7 @@ const componentDetection_1 = __importDefault(__nccwpck_require__(3202));
 const providers_1 = __nccwpck_require__(7486);
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e, _f;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
         const platform = providers_1.PlatformProviderFactory.create();
         try {
             if (!platform || !platform.context || !platform.input || !platform.logger) {
@@ -36450,6 +36450,8 @@ function run() {
             }
             // ADO-specific validation and setup
             if (platform.platform === providers_1.Platform.AzureDevOps) {
+                // Log debug environment status for troubleshooting
+                platform.logger.info(`[Debug Environment] SYSTEM_DEBUG: ${process.env.SYSTEM_DEBUG}, RUNNER_DEBUG: ${process.env.RUNNER_DEBUG}, DEBUG: ${process.env.DEBUG}`);
                 // We're in Azure DevOps, validate required inputs
                 const githubRepository = platform.input.getInput("githubRepository");
                 const githubToken = platform.input.getInput("token");
@@ -36547,14 +36549,18 @@ function run() {
                 platform.logger.setFailed(`Unsupported platform: ${platform.platform}`);
                 return;
             }
-            platform.logger.debug(`Manifests: ${manifests === null || manifests === void 0 ? void 0 : manifests.length}`);
+            // Debug snapshot creation
+            platform.logger.debug(`Snapshot created. Manifests property type: ${typeof snapshot.manifests}, value: ${snapshot.manifests}`);
+            platform.logger.debug(`Manifests to add: ${manifests === null || manifests === void 0 ? void 0 : manifests.length}`);
             manifests === null || manifests === void 0 ? void 0 : manifests.forEach((manifest) => {
                 platform.logger.debug(`Manifest: ${JSON.stringify(manifest)}`);
                 snapshot.addManifest(manifest);
             });
+            // Debug snapshot after adding manifests
+            platform.logger.debug(`After adding manifests - Snapshot manifests count: ${((_e = snapshot.manifests) === null || _e === void 0 ? void 0 : _e.size) || ((_f = snapshot.manifests) === null || _f === void 0 ? void 0 : _f.length) || 'unknown'}`);
             // Override snapshot ref and sha if provided
-            const snapshotSha = (_e = platform.input.getInput("snapshot-sha")) === null || _e === void 0 ? void 0 : _e.trim();
-            const snapshotRef = (_f = platform.input.getInput("snapshot-ref")) === null || _f === void 0 ? void 0 : _f.trim();
+            const snapshotSha = (_g = platform.input.getInput("snapshot-sha")) === null || _g === void 0 ? void 0 : _g.trim();
+            const snapshotRef = (_h = platform.input.getInput("snapshot-ref")) === null || _h === void 0 ? void 0 : _h.trim();
             if (snapshotSha) {
                 snapshot.sha = snapshotSha;
             }
@@ -36565,8 +36571,12 @@ function run() {
                 platform.logger.warning("No manifests found. Skipping dependency submission.");
                 return;
             }
-            platform.logger.info(`Submitting snapshot with ${snapshot.manifests.size} manifests to GitHub repository: ${repo.owner}/${repo.repo}`);
+            // Log manifest count and snapshot details before submission
+            const manifestCount = (manifests === null || manifests === void 0 ? void 0 : manifests.length) || 0;
+            const snapshotManifestCount = ((_j = snapshot.manifests) === null || _j === void 0 ? void 0 : _j.size) || ((_k = snapshot.manifests) === null || _k === void 0 ? void 0 : _k.length) || 'unknown';
+            platform.logger.info(`Submitting snapshot with ${manifestCount} manifests (snapshot has ${snapshotManifestCount}) to GitHub repository: ${repo.owner}/${repo.repo}`);
             platform.logger.debug(`Snapshot - SHA: ${snapshot.sha}, Ref: ${snapshot.ref}, Correlator: ${correlatorInput}`);
+            platform.logger.debug(`Snapshot manifests type: ${typeof snapshot.manifests}, constructor: ${(_m = (_l = snapshot.manifests) === null || _l === void 0 ? void 0 : _l.constructor) === null || _m === void 0 ? void 0 : _m.name}`);
             // Submit snapshot to GitHub (using the provided GitHub token)
             try {
                 yield (0, dependency_submission_toolkit_1.submitSnapshot)(snapshot);
@@ -36608,8 +36618,21 @@ exports.AzureDevOpsPlatformProvider = exports.AzureDevOpsContextProvider = expor
 const interfaces_1 = __nccwpck_require__(8356);
 class AzureDevOpsLoggerProvider {
     debug(message) {
-        if (process.env.SYSTEM_DEBUG === 'true') {
+        // Azure DevOps debug logging can be enabled in several ways:
+        // 1. system.debug pipeline variable set to true (becomes SYSTEM_DEBUG)
+        // 2. RUNNER_DEBUG (GitHub Actions compatibility)
+        // 3. DEBUG environment variable
+        const isDebugEnabled = process.env.SYSTEM_DEBUG === 'true' ||
+            process.env.RUNNER_DEBUG === '1' ||
+            process.env.DEBUG === 'true' ||
+            process.env.DEBUG === '1';
+        if (isDebugEnabled) {
             console.log(`##[debug]${message}`);
+        }
+        else {
+            // Fallback: always show debug as info if we can't determine debug state
+            // This ensures debug messages are visible during development/troubleshooting
+            console.log(`[DEBUG] ${message}`);
         }
     }
     info(message) {

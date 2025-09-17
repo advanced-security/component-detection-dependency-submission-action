@@ -5,8 +5,22 @@ import { ILoggerProvider, IInputProvider, IContextProvider, IPlatformProvider, P
 
 export class AzureDevOpsLoggerProvider implements ILoggerProvider {
   debug(message: string): void {
-    if (process.env.SYSTEM_DEBUG === 'true') {
+    // Azure DevOps debug logging can be enabled in several ways:
+    // 1. system.debug pipeline variable set to true (becomes SYSTEM_DEBUG)
+    // 2. RUNNER_DEBUG (GitHub Actions compatibility)
+    // 3. DEBUG environment variable
+    const isDebugEnabled =
+      process.env.SYSTEM_DEBUG === 'true' ||
+      process.env.RUNNER_DEBUG === '1' ||
+      process.env.DEBUG === 'true' ||
+      process.env.DEBUG === '1';
+
+    if (isDebugEnabled) {
       console.log(`##[debug]${message}`);
+    } else {
+      // Fallback: always show debug as info if we can't determine debug state
+      // This ensures debug messages are visible during development/troubleshooting
+      console.log(`[DEBUG] ${message}`);
     }
   }
 
