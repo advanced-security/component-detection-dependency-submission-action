@@ -1,22 +1,64 @@
 import ComponentDetection, { DependencyGraphs } from "./componentDetection";
+import { PlatformProviderFactory, Platform } from "./src/providers";
 import fs from "fs";
 
-test("Downloads CLI", async () => {
+// Setup platform provider for tests
+beforeAll(async () => {
+  process.env.GITHUB_ACTIONS = 'true'; // Simulate GitHub Actions environment
+  const platform = PlatformProviderFactory.create(Platform.GitHubActions);
+  ComponentDetection.setPlatformProvider(platform);
+
+  // Download the binary once for all tests
   await ComponentDetection.downloadLatestRelease();
-  expect(fs.existsSync(ComponentDetection.componentDetectionPath));
+}, 30000); // Increased timeout for the download
+
+test("Downloads CLI to proper path", async () => {
+  expect(fs.existsSync(ComponentDetection.componentDetectionPath)).toBe(true);
 });
 
-test("Runs CLI", async () => {
-  await ComponentDetection.downloadLatestRelease();
-  await ComponentDetection.runComponentDetection("./test");
-  expect(fs.existsSync(ComponentDetection.outputPath));
-}, 10000);
+// Group tests that use the CLI to prevent file contention
+describe("ComponentDetection CLI execution", () => {
+  test("Runs CLI", async () => {
+    await ComponentDetection.runComponentDetection("./test");
+    expect(fs.existsSync(ComponentDetection.outputPath)).toBe(true);
+  }, 30000); // Increased timeout
 
-test("Parses CLI output", async () => {
-  await ComponentDetection.downloadLatestRelease();
-  await ComponentDetection.runComponentDetection("./test");
-  var manifests = await ComponentDetection.getManifestsFromResults();
-  expect(manifests?.length == 2);
+  test("Parses CLI output", async () => {
+    await ComponentDetection.runComponentDetection("./test");
+    var manifests = await ComponentDetection.getManifestsFromResults();
+    expect(manifests?.length == 2);
+  }, 30000); // Increased timeout
+
+  test('full action scan creates manifests with correct names and file source locations', async () => {
+    const manifests = await ComponentDetection.scanAndGetManifests('./test');
+
+    expect(manifests).toBeDefined();
+    expect(manifests!.length).toBeGreaterThan(0);
+
+    for (const manifest of manifests!) {
+      expect(manifest.name.startsWith('/')).toBe(false);
+      expect(manifest.file?.source_location?.startsWith('/')).toBe(false);
+    }
+
+    const expectedManifestNames = [
+      'package.json',
+      'package-lock.json',
+      'nested/package.json',
+      'nested/package-lock.json',
+    ];
+
+    const manifestsByName = manifests!.reduce((acc, manifest) => {
+      acc[manifest.name] = manifest;
+      return acc;
+    }, {} as Record<string, any>);
+
+    for (const expectedName of expectedManifestNames) {
+      const manifest = manifestsByName[expectedName];
+      expect(manifest).toBeDefined();
+      expect(manifest.name).toBe(expectedName);
+      expect(manifest.file?.source_location).toBe(expectedName);
+    }
+  }, 30000); // Increased timeout
 });
 
 describe("ComponentDetection.makePackageUrl", () => {
@@ -213,34 +255,3 @@ describe('normalizeDependencyGraphPaths with real output.json', () => {
     }
   });
 });
-
-test('full action scan creates manifests with correct names and file source locations', async () => {
-  await ComponentDetection.downloadLatestRelease();
-  const manifests = await ComponentDetection.scanAndGetManifests('./test');
-
-  expect(manifests).toBeDefined();
-  expect(manifests!.length).toBeGreaterThan(0);
-
-  for (const manifest of manifests!) {
-    expect(manifest.name.startsWith('/')).toBe(false);
-  }
-
-  const expectedManifestNames = [
-    'package.json',
-    'package-lock.json',
-    'nested/package.json',
-    'nested/package-lock.json',
-  ];
-
-  const manifestsByName = manifests!.reduce((acc, manifest) => {
-    acc[manifest.name] = manifest;
-    return acc;
-  }, {} as Record<string, any>);
-
-  for (const expectedName of expectedManifestNames) {
-    const manifest = manifestsByName[expectedName];
-    expect(manifest).toBeDefined();
-    expect(manifest.name).toBe(expectedName);
-    expect(manifest.file?.source_location).toBe(expectedName);
-  }
-}, 15000);

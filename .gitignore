@@ -66,8 +66,15 @@ typings/
 # next.js build output
 .next
 
-# Output from scanning 
+# Output from scanning
 output.json
 
 # Component Detection binary downloaded by tests
 component-detection
+
+# ADO VSIX
+*.vsix
+*.vsix.zip
+
+# CD EXE
+*.exe

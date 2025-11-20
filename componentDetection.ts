@@ -1,5 +1,3 @@
-import * as github from '@actions/github'
-import * as core from '@actions/core'
 import { Octokit, App } from "octokit"
 import {
   PackageCache,
@@ -14,17 +12,29 @@ import tar from 'tar'
 import fs from 'fs'
 import * as exec from '@actions/exec';
 import dotenv from 'dotenv'
-import { Context } from '@actions/github/lib/context'
 import { unmockedModulePathPatterns } from './jest.config'
 import path from 'path';
+import { IPlatformProvider } from './src/providers';
 dotenv.config();
 
 export default class ComponentDetection {
   public static componentDetectionPath = process.platform === "win32" ? './component-detection.exe' : './component-detection';
   public static outputPath = './output.json';
+  private static platform: IPlatformProvider;
+
+  public static setPlatformProvider(provider: IPlatformProvider) {
+    this.platform = provider;
+  }
 
   // This is the default entry point for this class.
-  static async scanAndGetManifests(path: string): Promise<Manifest[] | undefined> {
+  static async scanAndGetManifests(path: string, platform?: IPlatformProvider): Promise<Manifest[] | undefined> {
+    if (platform) {
+      this.setPlatformProvider(platform);
+    }
+    if (!this.platform) {
+      throw new Error('Platform provider not set. Call setPlatformProvider first or pass platform parameter.');
+    }
+
     await this.downloadLatestRelease();
     await this.runComponentDetection(path);
     return await this.getManifestsFromResults();
@@ -32,47 +42,112 @@ export default class ComponentDetection {
   // Get the latest release from the component-detection repo, download the tarball, and extract it
   public static async downloadLatestRelease() {
     try {
-      core.debug(`Downloading latest release for ${process.platform}`);
+      this.platform.logger.debug(`Downloading latest release for ${process.platform}`);
       const downloadURL = await this.getLatestReleaseURL();
-      const blob = await (await fetch(new URL(downloadURL))).blob();
+
+      if (!downloadURL) {
+        throw new Error(`No download URL found for platform: ${process.platform}`);
+      }
+
+      this.platform.logger.debug(`Download URL: ${downloadURL}`);
+
+      const response = await fetch(new URL(downloadURL));
+      if (!response.ok) {
+        throw new Error(`Failed to download component-detection: ${response.status} ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
       const arrayBuffer = await blob.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
+      const buffer = new Uint8Array(arrayBuffer);
 
       // Write the blob to a file
-      core.debug(`Writing binary to file ${this.componentDetectionPath}`);
-      await fs.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
+      this.platform.logger.debug(`Writing binary to file ${this.componentDetectionPath}`);
+      fs.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
+
+      // Verify the file was created and is executable
+      if (!fs.existsSync(this.componentDetectionPath)) {
+        throw new Error(`Failed to create component-detection executable at ${this.componentDetectionPath}`);
+      }
+
+      this.platform.logger.debug(`Successfully downloaded and saved component-detection to ${this.componentDetectionPath}`);
     } catch (error: any) {
-      core.error(error);
+      this.platform.logger.error(`Error downloading component-detection: ${error.message}`);
+      throw error;
     }
   }
 
   // Run the component-detection CLI on the path specified
   public static async runComponentDetection(path: string) {
-    core.info("Running component-detection");
+    this.platform.logger.info("Running component-detection");
+
+    // Verify the executable exists before trying to run it
+    if (!fs.existsSync(this.componentDetectionPath)) {
+      throw new Error(`Component detection executable not found at ${this.componentDetectionPath}. Download may have failed.`);
+    }
+
+    // Verify the file is executable (on Unix systems)
+    if (process.platform !== "win32") {
+      try {
+        fs.accessSync(this.componentDetectionPath, fs.constants.X_OK);
+      } catch (error) {
+        this.platform.logger.warning(`Component detection file may not be executable. Attempting to set execute permissions.`);
+        try {
+          fs.chmodSync(this.componentDetectionPath, 0o755);
+        } catch (chmodError) {
+          this.platform.logger.error(`Failed to set execute permissions: ${chmodError}`);
+        }
+      }
+    }
+
+    const command = `${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`;
+    this.platform.logger.debug(`Executing command: ${command}`);
 
     try {
-      await exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`);
+      await exec.exec(command);
+
+      // Verify the output file was created
+      if (!fs.existsSync(this.outputPath)) {
+        throw new Error(`Component detection completed but output file ${this.outputPath} was not created`);
+      }
+
+      this.platform.logger.debug(`Component detection completed successfully. Output file: ${this.outputPath}`);
     } catch (error: any) {
-      core.error(error);
+      this.platform.logger.error(`Component detection execution failed: ${error.message}`);
+      throw error;
     }
   }
 
   private static getComponentDetectionParameters(): string {
     var parameters = "";
-    parameters += (core.getInput('directoryExclusionList')) ? ` --DirectoryExclusionList ${core.getInput('directoryExclusionList')}` : "";
-    parameters += (core.getInput('detectorArgs')) ? ` --DetectorArgs ${core.getInput('detectorArgs')}` : "";
-    parameters += (core.getInput('detectorsFilter')) ? ` --DetectorsFilter ${core.getInput('detectorsFilter')}` : "";
-    parameters += (core.getInput('detectorsCategories')) ? ` --DetectorCategories ${core.getInput('detectorsCategories')}` : "";
-    parameters += (core.getInput('dockerImagesToScan')) ? ` --DockerImagesToScan ${core.getInput('dockerImagesToScan')}` : "";
+    parameters += (this.platform.input.getInput('directoryExclusionList')) ? ` --DirectoryExclusionList ${this.platform.input.getInput('directoryExclusionList')}` : "";
+    parameters += (this.platform.input.getInput('detectorArgs')) ? ` --DetectorArgs ${this.platform.input.getInput('detectorArgs')}` : "";
+    parameters += (this.platform.input.getInput('detectorsFilter')) ? ` --DetectorsFilter ${this.platform.input.getInput('detectorsFilter')}` : "";
+    parameters += (this.platform.input.getInput('detectorsCategories')) ? ` --DetectorCategories ${this.platform.input.getInput('detectorsCategories')}` : "";
+    parameters += (this.platform.input.getInput('dockerImagesToScan')) ? ` --DockerImagesToScan ${this.platform.input.getInput('dockerImagesToScan')}` : "";
     return parameters;
   }
 
   public static async getManifestsFromResults(): Promise<Manifest[] | undefined> {
-    core.info("Getting manifests from results");
-    const results = await fs.readFileSync(this.outputPath, 'utf8');
-    var json: any = JSON.parse(results);
-    let dependencyGraphs: DependencyGraphs = this.normalizeDependencyGraphPaths(json.dependencyGraphs, core.getInput('filePath'));
-    return this.processComponentsToManifests(json.componentsFound, dependencyGraphs);
+    this.platform.logger.info("Getting manifests from results");
+
+    if (!fs.existsSync(this.outputPath)) {
+      throw new Error(`Output file ${this.outputPath} does not exist. Component detection may have failed.`);
+    }
+
+    try {
+      const results = await fs.readFileSync(this.outputPath, 'utf8');
+      if (!results.trim()) {
+        this.platform.logger.warning(`Output file ${this.outputPath} is empty`);
+        return [];
+      }
+
+      var json: any = JSON.parse(results);
+      let dependencyGraphs: DependencyGraphs = this.normalizeDependencyGraphPaths(json.dependencyGraphs, this.platform.input.getInput('filePath'));
+      return this.processComponentsToManifests(json.componentsFound, dependencyGraphs);
+    } catch (error: any) {
+      this.platform.logger.error(`Failed to parse component detection results: ${error.message}`);
+      throw error;
+    }
   }
 
   public static processComponentsToManifests(componentsFound: any[], dependencyGraphs: DependencyGraphs): Manifest[] {
@@ -83,7 +158,7 @@ export default class ComponentDetection {
     componentsFound.forEach(async (component: any) => {
       // Skip components without packageUrl
       if (!component.component.packageUrl) {
-        core.debug(`Skipping component detected without packageUrl: ${JSON.stringify({
+        this.platform.logger.debug(`Skipping component detected without packageUrl: ${JSON.stringify({
           id: component.component.id,
           name: component.component.name || 'unnamed',
           type: component.component.type || 'unknown'
@@ -95,7 +170,7 @@ export default class ComponentDetection {
 
       // Skip if the packageUrl is empty (indicates an invalid or missing packageUrl)
       if (!packageUrl) {
-        core.debug(`Skipping component with invalid packageUrl: ${component.component.id}`);
+        this.platform.logger.debug(`Skipping component with invalid packageUrl: ${component.component.id}`);
         return;
       }
 
@@ -108,12 +183,16 @@ export default class ComponentDetection {
     });
 
     // Set the transitive dependencies
-    core.debug("Sorting out transitive dependencies");
+    if (this.platform?.logger) {
+      this.platform.logger.debug("Sorting out transitive dependencies");
+    }
     packages.forEach(async (pkg: ComponentDetectionPackage) => {
       pkg.topLevelReferrers.forEach(async (referrer: any) => {
         // Skip if referrer doesn't have a valid packageUrl
         if (!referrer.packageUrl) {
-          core.debug(`Skipping referrer without packageUrl for component: ${pkg.id}`);
+          if (this.platform?.logger) {
+            this.platform.logger.debug(`Skipping referrer without packageUrl for component: ${pkg.id}`);
+          }
           return;
         }
 
@@ -122,21 +201,27 @@ export default class ComponentDetection {
 
         // Skip if the generated packageUrl is empty
         if (!referrerUrl) {
-          core.debug(`Skipping referrer with invalid packageUrl for component: ${pkg.id}`);
+          if (this.platform?.logger) {
+            this.platform.logger.debug(`Skipping referrer with invalid packageUrl for component: ${pkg.id}`);
+          }
           return;
         }
 
         try {
           const referrerPackage = packageCache.lookupPackage(referrerUrl);
           if (referrerPackage === pkg) {
-            core.debug(`Skipping self-reference for package: ${pkg.id}`);
+            if (this.platform?.logger) {
+              this.platform.logger.debug(`Skipping self-reference for package: ${pkg.id}`);
+            }
             return; // Skip self-references
           }
           if (referrerPackage) {
             referrerPackage.dependsOn(pkg);
           }
         } catch (error) {
-          core.debug(`Error looking up referrer package: ${error}`);
+          if (this.platform?.logger) {
+            this.platform.logger.debug(`Error looking up referrer package: ${error}`);
+          }
         }
       });
     });
@@ -163,7 +248,9 @@ export default class ComponentDetection {
 
         const depGraphEntry = dependencyGraphs[normalizedLocation];
         if (!depGraphEntry) {
-          core.warning(`No dependency graph entry found for manifest location: ${normalizedLocation}`);
+          if (this.platform?.logger) {
+            this.platform.logger.warning(`No dependency graph entry found for manifest location: ${normalizedLocation}`);
+          }
           return; // Skip this location if not found in dependencyGraphs
         }
 
@@ -200,7 +287,10 @@ export default class ComponentDetection {
       !packageUrlJson.Scheme ||
       !packageUrlJson.Type
     ) {
-      core.debug(`Warning: Received null or undefined packageUrlJson. Unable to create package URL.`);
+      // Use console.log for static method calls when platform is not available
+      if (this.platform?.logger) {
+        this.platform.logger.debug(`Warning: Received null or undefined packageUrlJson. Unable to create package URL.`);
+      }
       return ""; // Return a blank string for unknown packages
     }
 
@@ -223,49 +313,90 @@ export default class ComponentDetection {
       }
       return packageUrl;
     } catch (error) {
-      core.debug(`Error creating package URL from packageUrlJson: ${JSON.stringify(packageUrlJson, null, 2)}`);
-      core.debug(`Error details: ${error}`);
+      // Use console.log for static method calls when platform is not available
+      if (this.platform?.logger) {
+        this.platform.logger.debug(`Error creating package URL from packageUrlJson: ${JSON.stringify(packageUrlJson, null, 2)}`);
+        this.platform.logger.debug(`Error details: ${error}`);
+      }
       return ""; // Return a blank string for error cases
     }
   }
 
   private static async getLatestReleaseURL(): Promise<string> {
-    let githubToken = core.getInput('token') || process.env.GITHUB_TOKEN || "";
+    let githubToken = this.platform.input.getInput('token') || process.env.GITHUB_TOKEN || "";
 
     const githubAPIURL = 'https://api.github.com'
 
-    let ghesMode = github.context.apiUrl != githubAPIURL;
-    // If the we're running in GHES, then use an empty string as the token
+    // For GitHub Actions, we can detect GHES mode
+    // For ADO, we'll always use the public GitHub API
+    let ghesMode = false;
+    try {
+      // Try to detect if we're in GitHub Actions environment
+      if (process.env.GITHUB_ACTIONS === 'true') {
+        const { default: github } = await import('@actions/github');
+        ghesMode = github.context.apiUrl != githubAPIURL;
+      }
+    } catch {
+      // We're not in GitHub Actions environment, continue with public API
+    }
+
+    // If we're running in GHES, then use an empty string as the token
     if (ghesMode) {
       githubToken = "";
     }
-    const octokit = new Octokit({ auth: githubToken, baseUrl: githubAPIURL, request: { fetch: fetch}, log: {
-      debug: core.debug,
-      info: core.info,
-      warn: core.warning,
-      error: core.error
-    }, });
+
+    // For accessing public repositories, don't use auth if no token is provided
+    // This prevents "Bad credentials" errors when accessing public repos
+    const octokitConfig: any = {
+      baseUrl: githubAPIURL,
+      request: { fetch: fetch},
+      log: {
+        debug: this.platform.logger.debug,
+        info: this.platform.logger.info,
+        warn: this.platform.logger.warning,
+        error: this.platform.logger.error
+      }
+    };
+
+    // Only add auth if we have a token, since microsoft/component-detection is public
+    if (githubToken) {
+      octokitConfig.auth = githubToken;
+    }
+
+    const octokit = new Octokit(octokitConfig);
 
     const owner = "microsoft";
     const repo = "component-detection";
-    core.debug("Attempting to download latest release from " + githubAPIURL);
+    this.platform.logger.debug("Attempting to download latest release from " + githubAPIURL);
 
     try {
       const latestRelease = await octokit.request("GET /repos/{owner}/{repo}/releases/latest", {owner, repo});
 
-    var downloadURL: string = "";
-    const assetName = process.platform === "win32" ? "component-detection-win-x64.exe" : "component-detection-linux-x64";
-    latestRelease.data.assets.forEach((asset: any) => {
-      if (asset.name === assetName) {
-        downloadURL = asset.browser_download_url;
-      }
-    });
+      var downloadURL: string = "";
+      const assetName = process.platform === "win32" ? "component-detection-win-x64.exe" : "component-detection-linux-x64";
 
-    return downloadURL;
+      this.platform.logger.debug(`Looking for asset: ${assetName}`);
+      this.platform.logger.debug(`Available assets: ${latestRelease.data.assets.map(a => a.name).join(', ')}`);
+
+      latestRelease.data.assets.forEach((asset: any) => {
+        if (asset.name === assetName) {
+          downloadURL = asset.browser_download_url;
+          this.platform.logger.debug(`Found matching asset: ${asset.name} -> ${downloadURL}`);
+        }
+      });
+
+      if (!downloadURL) {
+        throw new Error(`No matching asset found for platform ${process.platform}. Expected asset name: ${assetName}`);
+      }
+
+      return downloadURL;
     } catch (error: any) {
-      core.error(error);
-      core.debug(error.message);
-      core.debug(error.stack);
+      this.platform.logger.error(`Failed to get latest release: ${error.message}`);
+      if (error.response) {
+        this.platform.logger.debug(`HTTP Status: ${error.response.status}`);
+        this.platform.logger.debug(`Response: ${JSON.stringify(error.response.data)}`);
+      }
+      this.platform.logger.debug(`Stack trace: ${error.stack}`);
       throw new Error("Failed to download latest release");
     }
   }

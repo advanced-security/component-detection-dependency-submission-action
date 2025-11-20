@@ -1,0 +1,71 @@
+{
+  "manifestVersion": 1,
+  "id": "component-detection-github-submission-task",
+  "name": "Component Detection for GitHub Dependency Submission",
+  "version": "0.1.16",
+  "publisher": "AdvancedSecurityOSS",
+  "description": "Upload information about your dependencies to the GitHub dependency graph using Microsoft's component detection library",
+  "public": false,
+  "categories": [
+    "Azure Pipelines"
+  ],
+  "tags": [
+    "Security",
+    "Dependencies",
+    "GitHub",
+    "SBOM",
+    "Supply Chain"
+  ],
+  "targets": [
+    {
+      "id": "Microsoft.VisualStudio.Services"
+    }
+  ],
+  "icons": {
+        "default": "images/extension-icon.png"
+    },
+  "files": [
+    {
+      "path": "component-detection-github-submission-task"
+    },
+    {
+      "path": "component-detection.exe"
+    }
+  ],
+  "content": {
+    "details": {
+      "path": "ADO-README.md"
+    },
+    "license": {
+      "path": "LICENSE"
+    }
+  },
+  "contributions": [
+    {
+      "id": "component-detection-github-submission-task",
+      "type": "ms.vss-distributed-task.task",
+      "targets": [
+        "ms.vss-distributed-task.tasks"
+      ],
+      "properties": {
+        "name": "component-detection-github-submission-task"
+      }
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "uri": "https://github.com/advanced-security/component-detection-dependency-submission-action"
+  },
+  "links": {
+    "getstarted": {
+      "uri": "https://github.com/advanced-security/component-detection-dependency-submission-action#readme"
+    },
+    "support": {
+      "uri": "https://github.com/advanced-security/component-detection-dependency-submission-action/issues"
+    }
+  },
+  "branding": {
+    "color": "rgb(36, 41, 46)",
+    "theme": "dark"
+  }
+}

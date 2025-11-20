@@ -1,0 +1,167 @@
+{
+  "id": "5065f07b-c417-4050-bf2b-f8520ce76aba",
+  "name": "component-detection-github-submission-task",
+  "friendlyName": "Component Detection GitHub Dependency Submission",
+  "description": "Upload information about your dependencies to the GitHub dependency graph using component detection",
+  "helpMarkDown": "[Learn more about this task](https://github.com/advanced-security/component-detection-dependency-submission-action)",
+  "category": "Utility",
+  "author": "GitHub Advanced Security",
+  "version": {
+    "Major": 0,
+    "Minor": 1,
+    "Patch": 16
+  },
+  "instanceNameFormat": "Component Detection $(filePath)",
+  "groups": [
+    {
+      "name": "detection",
+      "displayName": "Detection Options",
+      "isExpanded": true
+    },
+    {
+      "name": "github",
+      "displayName": "GitHub Settings",
+      "isExpanded": true
+    },
+    {
+      "name": "advanced",
+      "displayName": "Advanced",
+      "isExpanded": false
+    }
+  ],
+  "inputs": [
+    {
+      "name": "githubRepository",
+      "type": "string",
+      "label": "GitHub Repository",
+      "defaultValue": "",
+      "required": true,
+      "helpMarkDown": "The GitHub repository to submit dependencies to (format: owner/repo)",
+      "groupName": "github"
+    },
+    {
+      "name": "token",
+      "type": "string",
+      "label": "GitHub Token",
+      "defaultValue": "",
+      "required": true,
+      "helpMarkDown": "GitHub Personal Access Token with 'Contents' repository permissions (write)",
+      "groupName": "github"
+    },
+    {
+      "name": "filePath",
+      "type": "filePath",
+      "label": "File Path",
+      "defaultValue": "$(Build.SourcesDirectory)",
+      "required": false,
+      "helpMarkDown": "The path to the directory containing the environment files to upload",
+      "groupName": "detection"
+    },
+    {
+      "name": "directoryExclusionList",
+      "type": "string",
+      "label": "Directory Exclusion List",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "Filters out specific directories following a minimatch pattern",
+      "groupName": "detection"
+    },
+    {
+      "name": "detectorArgs",
+      "type": "string",
+      "label": "Detector Arguments",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "Comma separated list of properties that can affect the detectors execution",
+      "groupName": "detection"
+    },
+    {
+      "name": "dockerImagesToScan",
+      "type": "string",
+      "label": "Docker Images to Scan",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "Comma separated list of docker image names or hashes to execute container scanning on",
+      "groupName": "detection"
+    },
+    {
+      "name": "detectorsFilter",
+      "type": "string",
+      "label": "Detectors Filter",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "A comma separated list with the identifiers of the specific detectors to be used",
+      "groupName": "detection"
+    },
+    {
+      "name": "detectorsCategories",
+      "type": "string",
+      "label": "Detector Categories",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "A comma separated list with the categories of components that are going to be scanned",
+      "groupName": "detection"
+    },
+    {
+      "name": "correlator",
+      "type": "string",
+      "label": "Correlator",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "An optional identifier to distinguish between multiple dependency snapshots of the same type",
+      "groupName": "advanced"
+    },
+    {
+      "name": "detector-name",
+      "type": "string",
+      "label": "Detector Name",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "The name of the detector. If provided, detector-version and detector-url must also be provided",
+      "groupName": "advanced"
+    },
+    {
+      "name": "detector-version",
+      "type": "string",
+      "label": "Detector Version",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "The version of the detector. If provided, detector-name and detector-url must also be provided",
+      "groupName": "advanced"
+    },
+    {
+      "name": "detector-url",
+      "type": "string",
+      "label": "Detector URL",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "The URL of the detector. If provided, detector-name and detector-version must also be provided",
+      "groupName": "advanced"
+    },
+    {
+      "name": "snapshot-sha",
+      "type": "string",
+      "label": "Snapshot SHA",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "The SHA of the commit to associate with the snapshot",
+      "groupName": "advanced"
+    },
+    {
+      "name": "snapshot-ref",
+      "type": "string",
+      "label": "Snapshot Ref",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "The Git reference to associate with the snapshot",
+      "groupName": "advanced"
+    }
+  ],
+  "execution": {
+    "Node20_1": {
+      "target": "index.mjs",
+      "argumentFormat": ""
+    }
+  },
+  "minimumAgentVersion": "2.182.1"
+}

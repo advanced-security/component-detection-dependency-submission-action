@@ -13,10 +13,12 @@ export default [
   {
     ignores: [
       'dist/',
+      'ado-dist/',
       'coverage/',
       'output.json',
       '*.d.ts',
       'node_modules/',
+      'component-detection-github-submission-task/'
     ],
   },
 ];

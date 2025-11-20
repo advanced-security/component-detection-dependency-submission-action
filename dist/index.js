@@ -35974,13 +35974,23 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -35994,8 +36004,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const github = __importStar(__nccwpck_require__(3228));
-const core = __importStar(__nccwpck_require__(7484));
 const octokit_1 = __nccwpck_require__(7943);
 const dependency_submission_toolkit_1 = __nccwpck_require__(3323);
 const cross_fetch_1 = __importDefault(__nccwpck_require__(3304));
@@ -36005,9 +36013,18 @@ const dotenv_1 = __importDefault(__nccwpck_require__(8889));
 const path_1 = __importDefault(__nccwpck_require__(6928));
 dotenv_1.default.config();
 class ComponentDetection {
+    static setPlatformProvider(provider) {
+        this.platform = provider;
+    }
     // This is the default entry point for this class.
-    static scanAndGetManifests(path) {
+    static scanAndGetManifests(path, platform) {
         return __awaiter(this, void 0, void 0, function* () {
+            if (platform) {
+                this.setPlatformProvider(platform);
+            }
+            if (!this.platform) {
+                throw new Error('Platform provider not set. Call setPlatformProvider first or pass platform parameter.');
+            }
             yield this.downloadLatestRelease();
             yield this.runComponentDetection(path);
             return yield this.getManifestsFromResults();
@@ -36017,58 +36034,113 @@ class ComponentDetection {
     static downloadLatestRelease() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                core.debug(`Downloading latest release for ${process.platform}`);
+                this.platform.logger.debug(`Downloading latest release for ${process.platform}`);
                 const downloadURL = yield this.getLatestReleaseURL();
-                const blob = yield (yield (0, cross_fetch_1.default)(new URL(downloadURL))).blob();
+                if (!downloadURL) {
+                    throw new Error(`No download URL found for platform: ${process.platform}`);
+                }
+                this.platform.logger.debug(`Download URL: ${downloadURL}`);
+                const response = yield (0, cross_fetch_1.default)(new URL(downloadURL));
+                if (!response.ok) {
+                    throw new Error(`Failed to download component-detection: ${response.status} ${response.statusText}`);
+                }
+                const blob = yield response.blob();
                 const arrayBuffer = yield blob.arrayBuffer();
-                const buffer = Buffer.from(arrayBuffer);
+                const buffer = new Uint8Array(arrayBuffer);
                 // Write the blob to a file
-                core.debug(`Writing binary to file ${this.componentDetectionPath}`);
-                yield fs_1.default.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
+                this.platform.logger.debug(`Writing binary to file ${this.componentDetectionPath}`);
+                fs_1.default.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
+                // Verify the file was created and is executable
+                if (!fs_1.default.existsSync(this.componentDetectionPath)) {
+                    throw new Error(`Failed to create component-detection executable at ${this.componentDetectionPath}`);
+                }
+                this.platform.logger.debug(`Successfully downloaded and saved component-detection to ${this.componentDetectionPath}`);
             }
             catch (error) {
-                core.error(error);
+                this.platform.logger.error(`Error downloading component-detection: ${error.message}`);
+                throw error;
             }
         });
     }
     // Run the component-detection CLI on the path specified
     static runComponentDetection(path) {
         return __awaiter(this, void 0, void 0, function* () {
-            core.info("Running component-detection");
+            this.platform.logger.info("Running component-detection");
+            // Verify the executable exists before trying to run it
+            if (!fs_1.default.existsSync(this.componentDetectionPath)) {
+                throw new Error(`Component detection executable not found at ${this.componentDetectionPath}. Download may have failed.`);
+            }
+            // Verify the file is executable (on Unix systems)
+            if (process.platform !== "win32") {
+                try {
+                    fs_1.default.accessSync(this.componentDetectionPath, fs_1.default.constants.X_OK);
+                }
+                catch (error) {
+                    this.platform.logger.warning(`Component detection file may not be executable. Attempting to set execute permissions.`);
+                    try {
+                        fs_1.default.chmodSync(this.componentDetectionPath, 0o755);
+                    }
+                    catch (chmodError) {
+                        this.platform.logger.error(`Failed to set execute permissions: ${chmodError}`);
+                    }
+                }
+            }
+            const command = `${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`;
+            this.platform.logger.debug(`Executing command: ${command}`);
             try {
-                yield exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`);
+                yield exec.exec(command);
+                // Verify the output file was created
+                if (!fs_1.default.existsSync(this.outputPath)) {
+                    throw new Error(`Component detection completed but output file ${this.outputPath} was not created`);
+                }
+                this.platform.logger.debug(`Component detection completed successfully. Output file: ${this.outputPath}`);
             }
             catch (error) {
-                core.error(error);
+                this.platform.logger.error(`Component detection execution failed: ${error.message}`);
+                throw error;
             }
         });
     }
     static getComponentDetectionParameters() {
         var parameters = "";
-        parameters += (core.getInput('directoryExclusionList')) ? ` --DirectoryExclusionList ${core.getInput('directoryExclusionList')}` : "";
-        parameters += (core.getInput('detectorArgs')) ? ` --DetectorArgs ${core.getInput('detectorArgs')}` : "";
-        parameters += (core.getInput('detectorsFilter')) ? ` --DetectorsFilter ${core.getInput('detectorsFilter')}` : "";
-        parameters += (core.getInput('detectorsCategories')) ? ` --DetectorCategories ${core.getInput('detectorsCategories')}` : "";
-        parameters += (core.getInput('dockerImagesToScan')) ? ` --DockerImagesToScan ${core.getInput('dockerImagesToScan')}` : "";
+        parameters += (this.platform.input.getInput('directoryExclusionList')) ? ` --DirectoryExclusionList ${this.platform.input.getInput('directoryExclusionList')}` : "";
+        parameters += (this.platform.input.getInput('detectorArgs')) ? ` --DetectorArgs ${this.platform.input.getInput('detectorArgs')}` : "";
+        parameters += (this.platform.input.getInput('detectorsFilter')) ? ` --DetectorsFilter ${this.platform.input.getInput('detectorsFilter')}` : "";
+        parameters += (this.platform.input.getInput('detectorsCategories')) ? ` --DetectorCategories ${this.platform.input.getInput('detectorsCategories')}` : "";
+        parameters += (this.platform.input.getInput('dockerImagesToScan')) ? ` --DockerImagesToScan ${this.platform.input.getInput('dockerImagesToScan')}` : "";
         return parameters;
     }
     static getManifestsFromResults() {
         return __awaiter(this, void 0, void 0, function* () {
-            core.info("Getting manifests from results");
-            const results = yield fs_1.default.readFileSync(this.outputPath, 'utf8');
-            var json = JSON.parse(results);
-            let dependencyGraphs = this.normalizeDependencyGraphPaths(json.dependencyGraphs, core.getInput('filePath'));
-            return this.processComponentsToManifests(json.componentsFound, dependencyGraphs);
+            this.platform.logger.info("Getting manifests from results");
+            if (!fs_1.default.existsSync(this.outputPath)) {
+                throw new Error(`Output file ${this.outputPath} does not exist. Component detection may have failed.`);
+            }
+            try {
+                const results = yield fs_1.default.readFileSync(this.outputPath, 'utf8');
+                if (!results.trim()) {
+                    this.platform.logger.warning(`Output file ${this.outputPath} is empty`);
+                    return [];
+                }
+                var json = JSON.parse(results);
+                let dependencyGraphs = this.normalizeDependencyGraphPaths(json.dependencyGraphs, this.platform.input.getInput('filePath'));
+                return this.processComponentsToManifests(json.componentsFound, dependencyGraphs);
+            }
+            catch (error) {
+                this.platform.logger.error(`Failed to parse component detection results: ${error.message}`);
+                throw error;
+            }
         });
     }
     static processComponentsToManifests(componentsFound, dependencyGraphs) {
+        var _a;
         // Parse the result file and add the packages to the package cache
         const packageCache = new dependency_submission_toolkit_1.PackageCache();
         const packages = [];
         componentsFound.forEach((component) => __awaiter(this, void 0, void 0, function* () {
             // Skip components without packageUrl
             if (!component.component.packageUrl) {
-                core.debug(`Skipping component detected without packageUrl: ${JSON.stringify({
+                this.platform.logger.debug(`Skipping component detected without packageUrl: ${JSON.stringify({
                     id: component.component.id,
                     name: component.component.name || 'unnamed',
                     type: component.component.type || 'unknown'
@@ -36078,7 +36150,7 @@ class ComponentDetection {
             const packageUrl = ComponentDetection.makePackageUrl(component.component.packageUrl);
             // Skip if the packageUrl is empty (indicates an invalid or missing packageUrl)
             if (!packageUrl) {
-                core.debug(`Skipping component with invalid packageUrl: ${component.component.id}`);
+                this.platform.logger.debug(`Skipping component with invalid packageUrl: ${component.component.id}`);
                 return;
             }
             if (!packageCache.hasPackage(packageUrl)) {
@@ -36088,25 +36160,34 @@ class ComponentDetection {
             }
         }));
         // Set the transitive dependencies
-        core.debug("Sorting out transitive dependencies");
+        if ((_a = this.platform) === null || _a === void 0 ? void 0 : _a.logger) {
+            this.platform.logger.debug("Sorting out transitive dependencies");
+        }
         packages.forEach((pkg) => __awaiter(this, void 0, void 0, function* () {
             pkg.topLevelReferrers.forEach((referrer) => __awaiter(this, void 0, void 0, function* () {
+                var _a, _b, _c, _d;
                 // Skip if referrer doesn't have a valid packageUrl
                 if (!referrer.packageUrl) {
-                    core.debug(`Skipping referrer without packageUrl for component: ${pkg.id}`);
+                    if ((_a = this.platform) === null || _a === void 0 ? void 0 : _a.logger) {
+                        this.platform.logger.debug(`Skipping referrer without packageUrl for component: ${pkg.id}`);
+                    }
                     return;
                 }
                 const referrerUrl = ComponentDetection.makePackageUrl(referrer.packageUrl);
                 referrer.packageUrlString = referrerUrl;
                 // Skip if the generated packageUrl is empty
                 if (!referrerUrl) {
-                    core.debug(`Skipping referrer with invalid packageUrl for component: ${pkg.id}`);
+                    if ((_b = this.platform) === null || _b === void 0 ? void 0 : _b.logger) {
+                        this.platform.logger.debug(`Skipping referrer with invalid packageUrl for component: ${pkg.id}`);
+                    }
                     return;
                 }
                 try {
                     const referrerPackage = packageCache.lookupPackage(referrerUrl);
                     if (referrerPackage === pkg) {
-                        core.debug(`Skipping self-reference for package: ${pkg.id}`);
+                        if ((_c = this.platform) === null || _c === void 0 ? void 0 : _c.logger) {
+                            this.platform.logger.debug(`Skipping self-reference for package: ${pkg.id}`);
+                        }
                         return; // Skip self-references
                     }
                     if (referrerPackage) {
@@ -36114,7 +36195,9 @@ class ComponentDetection {
                     }
                 }
                 catch (error) {
-                    core.debug(`Error looking up referrer package: ${error}`);
+                    if ((_d = this.platform) === null || _d === void 0 ? void 0 : _d.logger) {
+                        this.platform.logger.debug(`Error looking up referrer package: ${error}`);
+                    }
                 }
             }));
         }));
@@ -36127,7 +36210,7 @@ class ComponentDetection {
     static addPackagesToManifests(packages, manifests, dependencyGraphs) {
         packages.forEach((pkg) => {
             pkg.locationsFoundAt.forEach((location) => {
-                var _a, _b;
+                var _a, _b, _c;
                 // Use the normalized path (remove leading slash if present)
                 const normalizedLocation = location.startsWith('/') ? location.substring(1) : location;
                 if (!manifests.find((manifest) => manifest.name == normalizedLocation)) {
@@ -36136,17 +36219,19 @@ class ComponentDetection {
                 }
                 const depGraphEntry = dependencyGraphs[normalizedLocation];
                 if (!depGraphEntry) {
-                    core.warning(`No dependency graph entry found for manifest location: ${normalizedLocation}`);
+                    if ((_a = this.platform) === null || _a === void 0 ? void 0 : _a.logger) {
+                        this.platform.logger.warning(`No dependency graph entry found for manifest location: ${normalizedLocation}`);
+                    }
                     return; // Skip this location if not found in dependencyGraphs
                 }
                 const directDependencies = depGraphEntry.explicitlyReferencedComponentIds;
                 if (directDependencies.includes(pkg.id)) {
-                    (_a = manifests
-                        .find((manifest) => manifest.name == normalizedLocation)) === null || _a === void 0 ? void 0 : _a.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
+                    (_b = manifests
+                        .find((manifest) => manifest.name == normalizedLocation)) === null || _b === void 0 ? void 0 : _b.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
                 }
                 else {
-                    (_b = manifests
-                        .find((manifest) => manifest.name == normalizedLocation)) === null || _b === void 0 ? void 0 : _b.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
+                    (_c = manifests
+                        .find((manifest) => manifest.name == normalizedLocation)) === null || _c === void 0 ? void 0 : _c.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
                 }
             });
         });
@@ -36155,13 +36240,17 @@ class ComponentDetection {
         return pkg.isDevelopmentDependency ? 'development' : 'runtime';
     }
     static makePackageUrl(packageUrlJson) {
+        var _a, _b;
         // Handle case when packageUrlJson is null or undefined
         if (!packageUrlJson ||
             typeof packageUrlJson.Scheme !== 'string' ||
             typeof packageUrlJson.Type !== 'string' ||
             !packageUrlJson.Scheme ||
             !packageUrlJson.Type) {
-            core.debug(`Warning: Received null or undefined packageUrlJson. Unable to create package URL.`);
+            // Use console.log for static method calls when platform is not available
+            if ((_a = this.platform) === null || _a === void 0 ? void 0 : _a.logger) {
+                this.platform.logger.debug(`Warning: Received null or undefined packageUrlJson. Unable to create package URL.`);
+            }
             return ""; // Return a blank string for unknown packages
         }
         try {
@@ -36184,44 +36273,79 @@ class ComponentDetection {
             return packageUrl;
         }
         catch (error) {
-            core.debug(`Error creating package URL from packageUrlJson: ${JSON.stringify(packageUrlJson, null, 2)}`);
-            core.debug(`Error details: ${error}`);
+            // Use console.log for static method calls when platform is not available
+            if ((_b = this.platform) === null || _b === void 0 ? void 0 : _b.logger) {
+                this.platform.logger.debug(`Error creating package URL from packageUrlJson: ${JSON.stringify(packageUrlJson, null, 2)}`);
+                this.platform.logger.debug(`Error details: ${error}`);
+            }
             return ""; // Return a blank string for error cases
         }
     }
     static getLatestReleaseURL() {
         return __awaiter(this, void 0, void 0, function* () {
-            let githubToken = core.getInput('token') || process.env.GITHUB_TOKEN || "";
+            let githubToken = this.platform.input.getInput('token') || process.env.GITHUB_TOKEN || "";
             const githubAPIURL = 'https://api.github.com';
-            let ghesMode = github.context.apiUrl != githubAPIURL;
-            // If the we're running in GHES, then use an empty string as the token
+            // For GitHub Actions, we can detect GHES mode
+            // For ADO, we'll always use the public GitHub API
+            let ghesMode = false;
+            try {
+                // Try to detect if we're in GitHub Actions environment
+                if (process.env.GITHUB_ACTIONS === 'true') {
+                    const { default: github } = yield Promise.resolve().then(() => __importStar(__nccwpck_require__(3228)));
+                    ghesMode = github.context.apiUrl != githubAPIURL;
+                }
+            }
+            catch (_a) {
+                // We're not in GitHub Actions environment, continue with public API
+            }
+            // If we're running in GHES, then use an empty string as the token
             if (ghesMode) {
                 githubToken = "";
             }
-            const octokit = new octokit_1.Octokit({ auth: githubToken, baseUrl: githubAPIURL, request: { fetch: cross_fetch_1.default }, log: {
-                    debug: core.debug,
-                    info: core.info,
-                    warn: core.warning,
-                    error: core.error
-                }, });
+            // For accessing public repositories, don't use auth if no token is provided
+            // This prevents "Bad credentials" errors when accessing public repos
+            const octokitConfig = {
+                baseUrl: githubAPIURL,
+                request: { fetch: cross_fetch_1.default },
+                log: {
+                    debug: this.platform.logger.debug,
+                    info: this.platform.logger.info,
+                    warn: this.platform.logger.warning,
+                    error: this.platform.logger.error
+                }
+            };
+            // Only add auth if we have a token, since microsoft/component-detection is public
+            if (githubToken) {
+                octokitConfig.auth = githubToken;
+            }
+            const octokit = new octokit_1.Octokit(octokitConfig);
             const owner = "microsoft";
             const repo = "component-detection";
-            core.debug("Attempting to download latest release from " + githubAPIURL);
+            this.platform.logger.debug("Attempting to download latest release from " + githubAPIURL);
             try {
                 const latestRelease = yield octokit.request("GET /repos/{owner}/{repo}/releases/latest", { owner, repo });
                 var downloadURL = "";
                 const assetName = process.platform === "win32" ? "component-detection-win-x64.exe" : "component-detection-linux-x64";
+                this.platform.logger.debug(`Looking for asset: ${assetName}`);
+                this.platform.logger.debug(`Available assets: ${latestRelease.data.assets.map(a => a.name).join(', ')}`);
                 latestRelease.data.assets.forEach((asset) => {
                     if (asset.name === assetName) {
                         downloadURL = asset.browser_download_url;
+                        this.platform.logger.debug(`Found matching asset: ${asset.name} -> ${downloadURL}`);
                     }
                 });
+                if (!downloadURL) {
+                    throw new Error(`No matching asset found for platform ${process.platform}. Expected asset name: ${assetName}`);
+                }
                 return downloadURL;
             }
             catch (error) {
-                core.error(error);
-                core.debug(error.message);
-                core.debug(error.stack);
+                this.platform.logger.error(`Failed to get latest release: ${error.message}`);
+                if (error.response) {
+                    this.platform.logger.debug(`HTTP Status: ${error.response.status}`);
+                    this.platform.logger.debug(`Response: ${JSON.stringify(error.response.data)}`);
+                }
+                this.platform.logger.debug(`Stack trace: ${error.stack}`);
                 throw new Error("Failed to download latest release");
             }
         });
@@ -36244,9 +36368,9 @@ class ComponentDetection {
         return normalized;
     }
 }
-exports["default"] = ComponentDetection;
 ComponentDetection.componentDetectionPath = process.platform === "win32" ? './component-detection.exe' : './component-detection';
 ComponentDetection.outputPath = './output.json';
+exports["default"] = ComponentDetection;
 class ComponentDetectionPackage extends dependency_submission_toolkit_1.Package {
     constructor(packageUrl, id, isDevelopmentDependency, topLevelReferrers, locationsFoundAt, containerDetailIds, containerLayerIds) {
         super(packageUrl);
@@ -36283,13 +36407,23 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -36303,60 +36437,441 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const core = __importStar(__nccwpck_require__(7484));
-const github = __importStar(__nccwpck_require__(3228));
 const dependency_submission_toolkit_1 = __nccwpck_require__(3323);
 const componentDetection_1 = __importDefault(__nccwpck_require__(3202));
+const providers_1 = __nccwpck_require__(7486);
 function run() {
-    var _a, _b, _c, _d, _e, _f;
     return __awaiter(this, void 0, void 0, function* () {
-        let manifests = yield componentDetection_1.default.scanAndGetManifests(core.getInput("filePath"));
-        const correlatorInput = ((_a = core.getInput("correlator")) === null || _a === void 0 ? void 0 : _a.trim()) || github.context.job;
-        // Get detector configuration inputs
-        const detectorName = (_b = core.getInput("detector-name")) === null || _b === void 0 ? void 0 : _b.trim();
-        const detectorVersion = (_c = core.getInput("detector-version")) === null || _c === void 0 ? void 0 : _c.trim();
-        const detectorUrl = (_d = core.getInput("detector-url")) === null || _d === void 0 ? void 0 : _d.trim();
-        // Validate that if any detector config is provided, all must be provided
-        const hasAnyDetectorInput = detectorName || detectorVersion || detectorUrl;
-        const hasAllDetectorInputs = detectorName && detectorVersion && detectorUrl;
-        if (hasAnyDetectorInput && !hasAllDetectorInputs) {
-            core.setFailed("If any detector configuration is provided (detector-name, detector-version, detector-url), all three must be provided.");
-            return;
-        }
-        // Use provided detector config or defaults
-        const detector = hasAllDetectorInputs
-            ? {
-                name: detectorName,
-                version: detectorVersion,
-                url: detectorUrl,
+        var _a, _b, _c, _d, _e, _f;
+        const platform = providers_1.PlatformProviderFactory.create();
+        try {
+            if (!platform || !platform.context || !platform.input || !platform.logger) {
+                throw new Error(`Failed to create platform provider with required components - platform: ${!!platform}, context: ${!!(platform === null || platform === void 0 ? void 0 : platform.context)}, input: ${!!(platform === null || platform === void 0 ? void 0 : platform.input)}, logger: ${!!(platform === null || platform === void 0 ? void 0 : platform.logger)}`);
             }
-            : {
-                name: "Component Detection",
-                version: "0.0.1",
-                url: "https://github.com/advanced-security/component-detection-dependency-submission-action",
-            };
-        let snapshot = new dependency_submission_toolkit_1.Snapshot(detector, github.context, {
-            correlator: correlatorInput,
-            id: github.context.runId.toString(),
-        });
-        core.debug(`Manifests: ${manifests === null || manifests === void 0 ? void 0 : manifests.length}`);
-        manifests === null || manifests === void 0 ? void 0 : manifests.forEach((manifest) => {
-            core.debug(`Manifest: ${JSON.stringify(manifest)}`);
-            snapshot.addManifest(manifest);
-        });
-        // Override snapshot ref and sha if provided
-        const snapshotSha = (_e = core.getInput("snapshot-sha")) === null || _e === void 0 ? void 0 : _e.trim();
-        const snapshotRef = (_f = core.getInput("snapshot-ref")) === null || _f === void 0 ? void 0 : _f.trim();
-        if (snapshotSha) {
-            snapshot.sha = snapshotSha;
+            // ADO-specific validation and setup
+            if (platform.platform === providers_1.Platform.AzureDevOps) {
+                // We're in Azure DevOps, validate required inputs
+                const githubRepository = platform.input.getInput("githubRepository");
+                const githubToken = platform.input.getInput("token");
+                if (!githubRepository) {
+                    platform.logger.setFailed("githubRepository input is required. Please provide the GitHub repository in format 'owner/repo'");
+                    return;
+                }
+                if (!githubToken) {
+                    platform.logger.setFailed("token input is required. Please provide a GitHub Personal Access Token with 'Contents' repository permissions");
+                    return;
+                }
+                platform.logger.debug(`GitHub Repository: ${githubRepository}`);
+                platform.logger.debug(`GitHub Token provided: ${githubToken ? 'Yes' : 'No'}`);
+                // Set expectations for dependency-submission-toolkit (GHEC)
+                process.env.GITHUB_TOKEN = githubToken;
+                process.env.GITHUB_REPOSITORY = githubRepository;
+                process.env.GITHUB_API_URL = 'https://api.github.com';
+                process.env.GITHUB_SERVER_URL = 'https://github.com';
+                process.env.GITHUB_GRAPHQL_URL = 'https://api.github.com/graphql';
+            }
+            let manifests = yield componentDetection_1.default.scanAndGetManifests(platform.input.getInput("filePath") || ".", platform);
+            const correlatorInput = ((_a = platform.input.getInput("correlator")) === null || _a === void 0 ? void 0 : _a.trim()) || platform.context.getJobId();
+            // Get detector configuration inputs
+            const detectorName = (_b = platform.input.getInput("detector-name")) === null || _b === void 0 ? void 0 : _b.trim();
+            const detectorVersion = (_c = platform.input.getInput("detector-version")) === null || _c === void 0 ? void 0 : _c.trim();
+            const detectorUrl = (_d = platform.input.getInput("detector-url")) === null || _d === void 0 ? void 0 : _d.trim();
+            // Validate that if any detector config is provided, all must be provided
+            const hasAnyDetectorInput = detectorName || detectorVersion || detectorUrl;
+            const hasAllDetectorInputs = detectorName && detectorVersion && detectorUrl;
+            if (hasAnyDetectorInput && !hasAllDetectorInputs) {
+                platform.logger.setFailed("If any detector configuration is provided (detector-name, detector-version, detector-url), all three must be provided.");
+                return;
+            }
+            // Use provided detector config or defaults
+            const detector = hasAllDetectorInputs
+                ? {
+                    name: detectorName,
+                    version: detectorVersion,
+                    url: detectorUrl,
+                }
+                : {
+                    name: "Component Detection",
+                    version: "0.0.1",
+                    url: "https://github.com/advanced-security/component-detection-dependency-submission-action",
+                };
+            // Create snapshot with context appropriate for the platform
+            let snapshot;
+            // Get repository info once (works for both platforms)
+            const repo = platform.context.getRepository();
+            if (platform.platform === providers_1.Platform.GitHubActions) {
+                // We're in GitHub Actions, use the actual github context
+                try {
+                    const githubModule = yield Promise.resolve().then(() => __importStar(__nccwpck_require__(3228)));
+                    const { context } = githubModule;
+                    if (!context) {
+                        throw new Error('GitHub context is undefined');
+                    }
+                    snapshot = new dependency_submission_toolkit_1.Snapshot(detector, context, {
+                        correlator: correlatorInput,
+                        id: platform.context.getRunId().toString(),
+                    });
+                }
+                catch (error) {
+                    platform.logger.error(`Failed to use GitHub Actions context: ${error}`);
+                    platform.logger.setFailed(`Cannot proceed without valid GitHub Actions context: ${error}`);
+                    return;
+                }
+            }
+            else if (platform.platform === providers_1.Platform.AzureDevOps) {
+                // Create a minimal GitHub context for ADO since dependency-submission-toolkit requires it
+                const mockContext = {
+                    repo,
+                    runId: platform.context.getRunId(),
+                    sha: platform.context.getSha(),
+                    ref: platform.context.getRef(),
+                    workflow: platform.context.getJobId(),
+                    job: platform.context.getJobId(),
+                    actor: 'azure-devops',
+                    action: 'component-detection',
+                    runAttempt: 1,
+                    runNumber: platform.context.getRunId(),
+                    apiUrl: 'https://api.github.com',
+                    graphqlUrl: 'https://api.github.com/graphql',
+                    serverUrl: 'https://github.com',
+                    payload: {},
+                    issue: {},
+                    eventName: 'push'
+                };
+                snapshot = new dependency_submission_toolkit_1.Snapshot(detector, mockContext, {
+                    correlator: correlatorInput,
+                    id: platform.context.getRunId().toString(),
+                });
+            }
+            else {
+                platform.logger.setFailed(`Unsupported platform: ${platform.platform}`);
+                return;
+            }
+            platform.logger.debug(`Manifests: ${manifests === null || manifests === void 0 ? void 0 : manifests.length}`);
+            manifests === null || manifests === void 0 ? void 0 : manifests.forEach((manifest) => {
+                platform.logger.debug(`Manifest: ${JSON.stringify(manifest)}`);
+                snapshot.addManifest(manifest);
+            });
+            // Override snapshot ref and sha if provided
+            const snapshotSha = (_e = platform.input.getInput("snapshot-sha")) === null || _e === void 0 ? void 0 : _e.trim();
+            const snapshotRef = (_f = platform.input.getInput("snapshot-ref")) === null || _f === void 0 ? void 0 : _f.trim();
+            if (snapshotSha) {
+                snapshot.sha = snapshotSha;
+            }
+            if (snapshotRef) {
+                snapshot.ref = snapshotRef;
+            }
+            if (!manifests || manifests.length === 0) {
+                platform.logger.warning("No manifests found. Skipping dependency submission.");
+                return;
+            }
+            platform.logger.info(`Submitting snapshot with ${snapshot.manifests.size} manifests to GitHub repository: ${repo.owner}/${repo.repo}`);
+            platform.logger.debug(`Snapshot - SHA: ${snapshot.sha}, Ref: ${snapshot.ref}, Correlator: ${correlatorInput}`);
+            // Submit snapshot to GitHub (using the provided GitHub token)
+            try {
+                yield (0, dependency_submission_toolkit_1.submitSnapshot)(snapshot);
+                platform.logger.info("Component detection and dependency submission completed successfully");
+            }
+            catch (submissionError) {
+                platform.logger.error(`Failed to submit snapshot to GitHub: ${submissionError.message}`);
+                if (submissionError.response) {
+                    platform.logger.error(`HTTP Status: ${submissionError.response.status}, Response: ${JSON.stringify(submissionError.response.data)}`);
+                }
+                if (submissionError.stack) {
+                    platform.logger.debug(`Stack trace: ${submissionError.stack}`);
+                }
+                throw submissionError;
+            }
         }
-        if (snapshotRef) {
-            snapshot.ref = snapshotRef;
+        catch (error) {
+            platform.logger.setFailed(`Component detection failed: ${error.message}`);
         }
-        (0, dependency_submission_toolkit_1.submitSnapshot)(snapshot);
     });
 }
-run();
+run().catch((error) => {
+    console.error('Unhandled error:', error);
+    process.exit(1);
+});
+
+
+/***/ }),
+
+/***/ 5133:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AzureDevOpsPlatformProvider = exports.AzureDevOpsContextProvider = exports.AzureDevOpsInputProvider = exports.AzureDevOpsLoggerProvider = void 0;
+// Note: Import azure-pipelines-task-lib when building for ADO
+// For now, we'll use process.env and console for basic functionality
+// import * as tl from 'azure-pipelines-task-lib/task';
+const interfaces_1 = __nccwpck_require__(8356);
+class AzureDevOpsLoggerProvider {
+    debug(message) {
+        if (process.env.SYSTEM_DEBUG === 'true') {
+            console.log(`##[debug]${message}`);
+        }
+    }
+    info(message) {
+        console.log(message);
+    }
+    warning(message) {
+        console.log(`##[warning]${message}`);
+    }
+    error(message) {
+        const errorMessage = message instanceof Error ? message.message : message;
+        console.log(`##[error]${errorMessage}`);
+    }
+    setFailed(message) {
+        console.log(`##[error]${message}`);
+        process.exit(1);
+    }
+}
+exports.AzureDevOpsLoggerProvider = AzureDevOpsLoggerProvider;
+class AzureDevOpsInputProvider {
+    getInput(name) {
+        // ADO task inputs are available as environment variables with INPUT_ prefix
+        const envName = `INPUT_${name.toUpperCase().replace(/-/g, '_')}`;
+        const value = process.env[envName] || '';
+        // Special handling for token input - also check GITHUB_TOKEN for backward compatibility
+        if (name === 'token' && !value) {
+            return process.env['GITHUB_TOKEN'] || '';
+        }
+        return value;
+    }
+    getBooleanInput(name) {
+        const value = this.getInput(name).toLowerCase();
+        return value === 'true' || value === '1';
+    }
+}
+exports.AzureDevOpsInputProvider = AzureDevOpsInputProvider;
+class AzureDevOpsContextProvider {
+    getRepository() {
+        // For ADO, we need to get GitHub org/repo from task inputs since we're submitting to GitHub
+        const githubRepo = new AzureDevOpsInputProvider().getInput('githubRepository');
+        if (!githubRepo) {
+            throw new Error('githubRepository input is required for Azure DevOps tasks');
+        }
+        const [owner, repo] = githubRepo.split('/');
+        if (!owner || !repo) {
+            throw new Error('githubRepository must be in format "owner/repo"');
+        }
+        return { owner, repo };
+    }
+    getJobId() {
+        return process.env.AGENT_JOBNAME || process.env.SYSTEM_JOBNAME || 'unknown-job';
+    }
+    getRunId() {
+        // Use build ID as equivalent to GitHub run ID
+        const buildId = process.env.BUILD_BUILDID;
+        return buildId ? parseInt(buildId, 10) : 0;
+    }
+    getSha() {
+        // Get the commit SHA from Azure DevOps variables
+        return process.env.BUILD_SOURCEVERSION || '';
+    }
+    getRef() {
+        // Get the branch reference from Azure DevOps variables
+        const sourceBranch = process.env.BUILD_SOURCEBRANCH;
+        return sourceBranch || 'refs/heads/main';
+    }
+    getWorkspace() {
+        return process.env.BUILD_SOURCESDIRECTORY || process.cwd();
+    }
+}
+exports.AzureDevOpsContextProvider = AzureDevOpsContextProvider;
+class AzureDevOpsPlatformProvider {
+    constructor() {
+        this.logger = new AzureDevOpsLoggerProvider();
+        this.input = new AzureDevOpsInputProvider();
+        this.context = new AzureDevOpsContextProvider();
+        this.platform = interfaces_1.Platform.AzureDevOps;
+    }
+}
+exports.AzureDevOpsPlatformProvider = AzureDevOpsPlatformProvider;
+
+
+/***/ }),
+
+/***/ 4885:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.GitHubActionsPlatformProvider = exports.GitHubActionsContextProvider = exports.GitHubActionsInputProvider = exports.GitHubActionsLoggerProvider = void 0;
+const core = __importStar(__nccwpck_require__(7484));
+const github = __importStar(__nccwpck_require__(3228));
+const interfaces_1 = __nccwpck_require__(8356);
+class GitHubActionsLoggerProvider {
+    debug(message) {
+        core.debug(message);
+    }
+    info(message) {
+        core.info(message);
+    }
+    warning(message) {
+        core.warning(message);
+    }
+    error(message) {
+        core.error(message);
+    }
+    setFailed(message) {
+        core.setFailed(message);
+    }
+}
+exports.GitHubActionsLoggerProvider = GitHubActionsLoggerProvider;
+class GitHubActionsInputProvider {
+    getInput(name) {
+        return core.getInput(name);
+    }
+    getBooleanInput(name) {
+        return core.getBooleanInput(name);
+    }
+}
+exports.GitHubActionsInputProvider = GitHubActionsInputProvider;
+class GitHubActionsContextProvider {
+    getRepository() {
+        return {
+            owner: github.context.repo.owner,
+            repo: github.context.repo.repo
+        };
+    }
+    getJobId() {
+        return github.context.job;
+    }
+    getRunId() {
+        return github.context.runId;
+    }
+    getSha() {
+        return github.context.sha;
+    }
+    getRef() {
+        return github.context.ref;
+    }
+    getWorkspace() {
+        return process.env.GITHUB_WORKSPACE || process.cwd();
+    }
+}
+exports.GitHubActionsContextProvider = GitHubActionsContextProvider;
+class GitHubActionsPlatformProvider {
+    constructor() {
+        this.logger = new GitHubActionsLoggerProvider();
+        this.input = new GitHubActionsInputProvider();
+        this.context = new GitHubActionsContextProvider();
+        this.platform = interfaces_1.Platform.GitHubActions;
+    }
+}
+exports.GitHubActionsPlatformProvider = GitHubActionsPlatformProvider;
+
+
+/***/ }),
+
+/***/ 7486:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PlatformProviderFactory = void 0;
+const interfaces_1 = __nccwpck_require__(8356);
+const githubActionsProvider_1 = __nccwpck_require__(4885);
+const azureDevOpsProvider_1 = __nccwpck_require__(5133);
+class PlatformProviderFactory {
+    static create(platform) {
+        // Auto-detect platform if not specified
+        if (!platform) {
+            platform = PlatformProviderFactory.detectPlatform();
+        }
+        switch (platform) {
+            case interfaces_1.Platform.GitHubActions:
+                return new githubActionsProvider_1.GitHubActionsPlatformProvider();
+            case interfaces_1.Platform.AzureDevOps:
+                return new azureDevOpsProvider_1.AzureDevOpsPlatformProvider();
+            default:
+                throw new Error(`Unsupported platform: ${platform}`);
+        }
+    }
+    static detectPlatform() {
+        // Check for GitHub Actions environment
+        if (process.env.GITHUB_ACTIONS === 'true') {
+            return interfaces_1.Platform.GitHubActions;
+        }
+        // Check for Azure DevOps environment
+        if (process.env.TF_BUILD === 'True' || process.env.AGENT_NAME) {
+            return interfaces_1.Platform.AzureDevOps;
+        }
+        // Default to GitHub Actions if we can't detect
+        return interfaces_1.Platform.GitHubActions;
+    }
+}
+exports.PlatformProviderFactory = PlatformProviderFactory;
+__exportStar(__nccwpck_require__(8356), exports);
+__exportStar(__nccwpck_require__(4885), exports);
+__exportStar(__nccwpck_require__(5133), exports);
+
+
+/***/ }),
+
+/***/ 8356:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+/**
+ * Platform abstraction interfaces for GitHub Actions vs Azure DevOps
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Platform = void 0;
+var Platform;
+(function (Platform) {
+    Platform["GitHubActions"] = "github-actions";
+    Platform["AzureDevOps"] = "azure-devops";
+})(Platform || (exports.Platform = Platform = {}));
 
 
 /***/ }),
