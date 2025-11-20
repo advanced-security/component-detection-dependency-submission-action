@@ -36129,7 +36129,9 @@ class ComponentDetection {
             pkg.locationsFoundAt.forEach((location) => {
                 var _a, _b;
                 // Use the normalized path (remove leading slash if present)
-                const normalizedLocation = location.startsWith('/') ? location.substring(1) : location;
+                let normalizedLocation = location.startsWith('/') ? location.substring(1) : location;
+                // Unescape the path, as upstream ComponentDetection emits locationsFoundAt in URL-encoded form
+                normalizedLocation = decodeURIComponent(normalizedLocation);
                 if (!manifests.find((manifest) => manifest.name == normalizedLocation)) {
                     const manifest = new dependency_submission_toolkit_1.Manifest(normalizedLocation, normalizedLocation);
                     manifests.push(manifest);

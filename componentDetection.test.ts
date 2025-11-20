@@ -156,6 +156,44 @@ describe("ComponentDetection.processComponentsToManifests", () => {
     expect(manifests[0].indirectDependencies()).toHaveLength(1);
     expect(manifests[0].countDependencies()).toBe(1);
   });
+
+  test("un-escapes URL-encoded locationsFoundAt", () => {
+  const componentsFound = [
+      {
+        component: {
+          name: "test-package",
+          version: "1.0.0",
+          packageUrl: {
+            Scheme: "pkg",
+            Type: "nuget",
+            Name: "test-package",
+            Version: "1.0.0"
+          },
+          id: "test-package 1.0.0 - nuget"
+        },
+        isDevelopmentDependency: false,
+        topLevelReferrers: [], // Empty = direct dependency
+        locationsFoundAt: ["/my%20project/my%20project.csproj"]
+      }
+    ];
+
+    const dependencyGraphs: DependencyGraphs = {
+      "my project/my project.csproj": {
+        graph: { "test-package": null },
+        explicitlyReferencedComponentIds: ["test-package 1.0.0 - nuget"],
+        developmentDependencies: [],
+        dependencies: []
+      }
+    };
+
+    const manifests = ComponentDetection.processComponentsToManifests(componentsFound, dependencyGraphs);
+
+    expect(manifests).toHaveLength(1);
+    expect(manifests[0].name).toBe("my project/my project.csproj");
+    expect(manifests[0].directDependencies()).toHaveLength(1);
+    expect(manifests[0].indirectDependencies()).toHaveLength(0);
+    expect(manifests[0].countDependencies()).toBe(1);
+  });
 });
 
 describe('normalizeDependencyGraphPaths', () => {
