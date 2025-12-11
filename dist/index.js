@@ -8894,6 +8894,46 @@ const packageJson = __nccwpck_require__(56)
 
 const version = packageJson.version
 
+// Array of tips to display randomly
+const TIPS = [
+  '🔐 encrypt with Dotenvx: https://dotenvx.com',
+  '🔐 prevent committing .env to code: https://dotenvx.com/precommit',
+  '🔐 prevent building .env in docker: https://dotenvx.com/prebuild',
+  '📡 add observability to secrets: https://dotenvx.com/ops',
+  '👥 sync secrets across teammates & machines: https://dotenvx.com/ops',
+  '🗂️ backup and recover secrets: https://dotenvx.com/ops',
+  '✅ audit secrets and track compliance: https://dotenvx.com/ops',
+  '🔄 add secrets lifecycle management: https://dotenvx.com/ops',
+  '🔑 add access controls to secrets: https://dotenvx.com/ops',
+  '🛠️  run anywhere with `dotenvx run -- yourcommand`',
+  '⚙️  specify custom .env file path with { path: \'/custom/path/.env\' }',
+  '⚙️  enable debug logging with { debug: true }',
+  '⚙️  override existing env vars with { override: true }',
+  '⚙️  suppress all logs with { quiet: true }',
+  '⚙️  write to custom object with { processEnv: myObject }',
+  '⚙️  load multiple .env files with { path: [\'.env.local\', \'.env\'] }'
+]
+
+// Get a random tip from the tips array
+function _getRandomTip () {
+  return TIPS[Math.floor(Math.random() * TIPS.length)]
+}
+
+function parseBoolean (value) {
+  if (typeof value === 'string') {
+    return !['false', '0', 'no', 'off', ''].includes(value.toLowerCase())
+  }
+  return Boolean(value)
+}
+
+function supportsAnsi () {
+  return process.stdout.isTTY // && process.env.TERM !== 'dumb'
+}
+
+function dim (text) {
+  return supportsAnsi() ? `\x1b[2m${text}\x1b[0m` : text
+}
+
 const LINE = /(?:^|^)\s*(?:export\s+)?([\w.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|\s*"(?:\\"|[^"])*"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?(?:$|$)/mg
 
 // Parse src into an Object
@@ -8936,10 +8976,11 @@ function parse (src) {
 }
 
 function _parseVault (options) {
-  const vaultPath = _vaultPath(options)
+  options = options || {}
 
-  // Parse .env.vault
-  const result = DotenvModule.configDotenv({ path: vaultPath })
+  const vaultPath = _vaultPath(options)
+  options.path = vaultPath // parse .env.vault
+  const result = DotenvModule.configDotenv(options)
   if (!result.parsed) {
     const err = new Error(`MISSING_DATA: Cannot parse ${vaultPath} for an unknown reason`)
     err.code = 'MISSING_DATA'
@@ -8978,11 +9019,15 @@ function _parseVault (options) {
 }
 
 function _warn (message) {
-  console.log(`[dotenv@${version}][WARN] ${message}`)
+  console.error(`[dotenv@${version}][WARN] ${message}`)
 }
 
 function _debug (message) {
   console.log(`[dotenv@${version}][DEBUG] ${message}`)
+}
+
+function _log (message) {
+  console.log(`[dotenv@${version}] ${message}`)
 }
 
 function _dotenvKey (options) {
@@ -9072,9 +9117,11 @@ function _resolveHome (envPath) {
 }
 
 function _configVault (options) {
-  const debug = Boolean(options && options.debug)
-  if (debug) {
-    _debug('Loading env from encrypted .env.vault')
+  const debug = parseBoolean(process.env.DOTENV_CONFIG_DEBUG || (options && options.debug))
+  const quiet = parseBoolean(process.env.DOTENV_CONFIG_QUIET || (options && options.quiet))
+
+  if (debug || !quiet) {
+    _log('Loading env from encrypted .env.vault')
   }
 
   const parsed = DotenvModule._parseVault(options)
@@ -9092,7 +9139,12 @@ function _configVault (options) {
 function configDotenv (options) {
   const dotenvPath = path.resolve(process.cwd(), '.env')
   let encoding = 'utf8'
-  const debug = Boolean(options && options.debug)
+  let processEnv = process.env
+  if (options && options.processEnv != null) {
+    processEnv = options.processEnv
+  }
+  let debug = parseBoolean(processEnv.DOTENV_CONFIG_DEBUG || (options && options.debug))
+  let quiet = parseBoolean(processEnv.DOTENV_CONFIG_QUIET || (options && options.quiet))
 
   if (options && options.encoding) {
     encoding = options.encoding
@@ -9132,12 +9184,29 @@ function configDotenv (options) {
     }
   }
 
-  let processEnv = process.env
-  if (options && options.processEnv != null) {
-    processEnv = options.processEnv
-  }
+  const populated = DotenvModule.populate(processEnv, parsedAll, options)
 
-  DotenvModule.populate(processEnv, parsedAll, options)
+  // handle user settings DOTENV_CONFIG_ options inside .env file(s)
+  debug = parseBoolean(processEnv.DOTENV_CONFIG_DEBUG || debug)
+  quiet = parseBoolean(processEnv.DOTENV_CONFIG_QUIET || quiet)
+
+  if (debug || !quiet) {
+    const keysCount = Object.keys(populated).length
+    const shortPaths = []
+    for (const filePath of optionPaths) {
+      try {
+        const relative = path.relative(process.cwd(), filePath)
+        shortPaths.push(relative)
+      } catch (e) {
+        if (debug) {
+          _debug(`Failed to load ${filePath} ${e.message}`)
+        }
+        lastError = e
+      }
+    }
+
+    _log(`injecting env (${keysCount}) from ${shortPaths.join(',')} ${dim(`-- tip: ${_getRandomTip()}`)}`)
+  }
 
   if (lastError) {
     return { parsed: parsedAll, error: lastError }
@@ -9200,6 +9269,7 @@ function decrypt (encrypted, keyStr) {
 function populate (processEnv, parsed, options = {}) {
   const debug = Boolean(options && options.debug)
   const override = Boolean(options && options.override)
+  const populated = {}
 
   if (typeof parsed !== 'object') {
     const err = new Error('OBJECT_REQUIRED: Please check the processEnv argument being passed to populate')
@@ -9212,6 +9282,7 @@ function populate (processEnv, parsed, options = {}) {
     if (Object.prototype.hasOwnProperty.call(processEnv, key)) {
       if (override === true) {
         processEnv[key] = parsed[key]
+        populated[key] = parsed[key]
       }
 
       if (debug) {
@@ -9223,8 +9294,11 @@ function populate (processEnv, parsed, options = {}) {
       }
     } else {
       processEnv[key] = parsed[key]
+      populated[key] = parsed[key]
     }
   }
+
+  return populated
 }
 
 const DotenvModule = {
@@ -38982,12 +39056,13 @@ class RequestError extends Error {
    */
   response;
   constructor(message, statusCode, options) {
-    super(message);
+    super(message, { cause: options.cause });
     this.name = "HttpError";
     this.status = Number.parseInt(statusCode);
     if (Number.isNaN(this.status)) {
       this.status = 0;
     }
+    /* v8 ignore else -- @preserve -- Bug with vitest coverage where it sees an else branch that doesn't exist */
     if ("response" in options) {
       this.response = options.response;
     }
@@ -39014,7 +39089,7 @@ class RequestError extends Error {
 
 
 // pkg/dist-src/version.js
-var dist_bundle_VERSION = "0.0.0-development";
+var dist_bundle_VERSION = "10.0.7";
 
 // pkg/dist-src/defaults.js
 var defaults_default = {
@@ -39038,6 +39113,7 @@ function dist_bundle_isPlainObject(value) {
 
 // pkg/dist-src/fetch-wrapper.js
 
+var noop = () => "";
 async function fetchWrapper(requestOptions) {
   const fetch = requestOptions.request?.fetch || globalThis.fetch;
   if (!fetch) {
@@ -39139,7 +39215,7 @@ async function fetchWrapper(requestOptions) {
 async function getResponseData(response) {
   const contentType = response.headers.get("content-type");
   if (!contentType) {
-    return response.text().catch(() => "");
+    return response.text().catch(noop);
   }
   const mimetype = (0,fast_content_type_parse/* safeParse */.xL)(contentType);
   if (isJSONResponse(mimetype)) {
@@ -39151,9 +39227,12 @@ async function getResponseData(response) {
       return text;
     }
   } else if (mimetype.type.startsWith("text/") || mimetype.parameters.charset?.toLowerCase() === "utf-8") {
-    return response.text().catch(() => "");
+    return response.text().catch(noop);
   } else {
-    return response.arrayBuffer().catch(() => new ArrayBuffer(0));
+    return response.arrayBuffer().catch(
+      /* v8 ignore next -- @preserve */
+      () => new ArrayBuffer(0)
+    );
   }
 }
 function isJSONResponse(mimetype) {
@@ -39201,6 +39280,8 @@ function dist_bundle_withDefaults(oldEndpoint, newDefaults) {
 // pkg/dist-src/index.js
 var request = dist_bundle_withDefaults(endpoint, defaults_default);
 
+/* v8 ignore next -- @preserve */
+/* v8 ignore else -- @preserve */
 
 ;// CONCATENATED MODULE: ./node_modules/octokit/node_modules/@octokit/graphql/dist-bundle/index.js
 // pkg/dist-src/index.js
@@ -39385,7 +39466,7 @@ var createTokenAuth = function createTokenAuth2(token) {
 
 
 ;// CONCATENATED MODULE: ./node_modules/octokit/node_modules/@octokit/core/dist-src/version.js
-const version_VERSION = "6.1.5";
+const version_VERSION = "7.0.6";
 
 
 ;// CONCATENATED MODULE: ./node_modules/octokit/node_modules/@octokit/core/dist-src/index.js
@@ -39395,10 +39476,25 @@ const version_VERSION = "6.1.5";
 
 
 
-const noop = () => {
+const dist_src_noop = () => {
 };
 const consoleWarn = console.warn.bind(console);
 const consoleError = console.error.bind(console);
+function createLogger(logger = {}) {
+  if (typeof logger.debug !== "function") {
+    logger.debug = dist_src_noop;
+  }
+  if (typeof logger.info !== "function") {
+    logger.info = dist_src_noop;
+  }
+  if (typeof logger.warn !== "function") {
+    logger.warn = consoleWarn;
+  }
+  if (typeof logger.error !== "function") {
+    logger.error = consoleError;
+  }
+  return logger;
+}
 const userAgentTrail = `octokit-core.js/${version_VERSION} ${getUserAgent()}`;
 class Octokit {
   static VERSION = version_VERSION;
@@ -39466,15 +39562,7 @@ class Octokit {
     }
     this.request = request.defaults(requestDefaults);
     this.graphql = withCustomRequest(this.request).defaults(requestDefaults);
-    this.log = Object.assign(
-      {
-        debug: noop,
-        info: noop,
-        warn: consoleWarn,
-        error: consoleError
-      },
-      options.log
-    );
+    this.log = createLogger(options.log);
     this.hook = hook;
     if (!options.authStrategy) {
       if (!options.auth) {
@@ -39534,14 +39622,16 @@ function normalizePaginatedListResponse(response) {
       data: []
     };
   }
-  const responseNeedsNormalization = "total_count" in response.data && !("url" in response.data);
+  const responseNeedsNormalization = ("total_count" in response.data || "total_commits" in response.data) && !("url" in response.data);
   if (!responseNeedsNormalization) return response;
   const incompleteResults = response.data.incomplete_results;
   const repositorySelection = response.data.repository_selection;
   const totalCount = response.data.total_count;
+  const totalCommits = response.data.total_commits;
   delete response.data.incomplete_results;
   delete response.data.repository_selection;
   delete response.data.total_count;
+  delete response.data.total_commits;
   const namespaceKey = Object.keys(response.data)[0];
   const data = response.data[namespaceKey];
   response.data = data;
@@ -39552,6 +39642,7 @@ function normalizePaginatedListResponse(response) {
     response.data.repository_selection = repositorySelection;
   }
   response.data.total_count = totalCount;
+  response.data.total_commits = totalCommits;
   return response;
 }
 
@@ -39572,6 +39663,16 @@ function iterator(octokit, route, parameters) {
           url = ((normalizedResponse.headers.link || "").match(
             /<([^<>]+)>;\s*rel="next"/
           ) || [])[1];
+          if (!url && "total_commits" in normalizedResponse.data) {
+            const parsedUrl = new URL(normalizedResponse.url);
+            const params = parsedUrl.searchParams;
+            const page = parseInt(params.get("page") || "1", 10);
+            const per_page = parseInt(params.get("per_page") || "250", 10);
+            if (page * per_page < normalizedResponse.data.total_commits) {
+              params.set("page", String(page + 1));
+              url = parsedUrl.toString();
+            }
+          }
           return { value: normalizedResponse };
         } catch (error) {
           if (error.status !== 409) throw error;
@@ -39638,7 +39739,9 @@ var paginatingEndpoints = (/* unused pure expression or super */ null && ([
   "GET /enterprises/{enterprise}/code-security/configurations",
   "GET /enterprises/{enterprise}/code-security/configurations/{configuration_id}/repositories",
   "GET /enterprises/{enterprise}/dependabot/alerts",
-  "GET /enterprises/{enterprise}/secret-scanning/alerts",
+  "GET /enterprises/{enterprise}/teams",
+  "GET /enterprises/{enterprise}/teams/{enterprise-team}/memberships",
+  "GET /enterprises/{enterprise}/teams/{enterprise-team}/organizations",
   "GET /events",
   "GET /gists",
   "GET /gists/public",
@@ -39656,9 +39759,11 @@ var paginatingEndpoints = (/* unused pure expression or super */ null && ([
   "GET /networks/{owner}/{repo}/events",
   "GET /notifications",
   "GET /organizations",
+  "GET /organizations/{org}/dependabot/repository-access",
   "GET /orgs/{org}/actions/cache/usage-by-repository",
   "GET /orgs/{org}/actions/hosted-runners",
   "GET /orgs/{org}/actions/permissions/repositories",
+  "GET /orgs/{org}/actions/permissions/self-hosted-runners/repositories",
   "GET /orgs/{org}/actions/runner-groups",
   "GET /orgs/{org}/actions/runner-groups/{runner_group_id}/hosted-runners",
   "GET /orgs/{org}/actions/runner-groups/{runner_group_id}/repositories",
@@ -39668,6 +39773,7 @@ var paginatingEndpoints = (/* unused pure expression or super */ null && ([
   "GET /orgs/{org}/actions/secrets/{secret_name}/repositories",
   "GET /orgs/{org}/actions/variables",
   "GET /orgs/{org}/actions/variables/{name}/repositories",
+  "GET /orgs/{org}/attestations/repositories",
   "GET /orgs/{org}/attestations/{subject_digest}",
   "GET /orgs/{org}/blocks",
   "GET /orgs/{org}/campaigns",
@@ -39708,6 +39814,9 @@ var paginatingEndpoints = (/* unused pure expression or super */ null && ([
   "GET /orgs/{org}/personal-access-tokens/{pat_id}/repositories",
   "GET /orgs/{org}/private-registries",
   "GET /orgs/{org}/projects",
+  "GET /orgs/{org}/projectsV2",
+  "GET /orgs/{org}/projectsV2/{project_number}/fields",
+  "GET /orgs/{org}/projectsV2/{project_number}/items",
   "GET /orgs/{org}/properties/values",
   "GET /orgs/{org}/public_members",
   "GET /orgs/{org}/repos",
@@ -39716,6 +39825,7 @@ var paginatingEndpoints = (/* unused pure expression or super */ null && ([
   "GET /orgs/{org}/rulesets/{ruleset_id}/history",
   "GET /orgs/{org}/secret-scanning/alerts",
   "GET /orgs/{org}/security-advisories",
+  "GET /orgs/{org}/settings/immutable-releases/repositories",
   "GET /orgs/{org}/settings/network-configurations",
   "GET /orgs/{org}/team/{team_slug}/copilot/metrics",
   "GET /orgs/{org}/teams",
@@ -39728,9 +39838,7 @@ var paginatingEndpoints = (/* unused pure expression or super */ null && ([
   "GET /orgs/{org}/teams/{team_slug}/projects",
   "GET /orgs/{org}/teams/{team_slug}/repos",
   "GET /orgs/{org}/teams/{team_slug}/teams",
-  "GET /projects/columns/{column_id}/cards",
   "GET /projects/{project_id}/collaborators",
-  "GET /projects/{project_id}/columns",
   "GET /repos/{owner}/{repo}/actions/artifacts",
   "GET /repos/{owner}/{repo}/actions/caches",
   "GET /repos/{owner}/{repo}/actions/organization-secrets",
@@ -39766,6 +39874,8 @@ var paginatingEndpoints = (/* unused pure expression or super */ null && ([
   "GET /repos/{owner}/{repo}/commits/{ref}/check-suites",
   "GET /repos/{owner}/{repo}/commits/{ref}/status",
   "GET /repos/{owner}/{repo}/commits/{ref}/statuses",
+  "GET /repos/{owner}/{repo}/compare/{basehead}",
+  "GET /repos/{owner}/{repo}/compare/{base}...{head}",
   "GET /repos/{owner}/{repo}/contributors",
   "GET /repos/{owner}/{repo}/dependabot/alerts",
   "GET /repos/{owner}/{repo}/dependabot/secrets",
@@ -39786,6 +39896,8 @@ var paginatingEndpoints = (/* unused pure expression or super */ null && ([
   "GET /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions",
   "GET /repos/{owner}/{repo}/issues/events",
   "GET /repos/{owner}/{repo}/issues/{issue_number}/comments",
+  "GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by",
+  "GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocking",
   "GET /repos/{owner}/{repo}/issues/{issue_number}/events",
   "GET /repos/{owner}/{repo}/issues/{issue_number}/labels",
   "GET /repos/{owner}/{repo}/issues/{issue_number}/reactions",
@@ -39878,6 +39990,9 @@ var paginatingEndpoints = (/* unused pure expression or super */ null && ([
   "GET /users/{username}/orgs",
   "GET /users/{username}/packages",
   "GET /users/{username}/projects",
+  "GET /users/{username}/projectsV2",
+  "GET /users/{username}/projectsV2/{project_number}/fields",
+  "GET /users/{username}/projectsV2/{project_number}/items",
   "GET /users/{username}/received_events",
   "GET /users/{username}/received_events/public",
   "GET /users/{username}/repos",
@@ -40088,7 +40203,7 @@ function paginateGraphQL(octokit) {
 
 
 ;// CONCATENATED MODULE: ./node_modules/octokit/node_modules/@octokit/plugin-rest-endpoint-methods/dist-src/version.js
-const dist_src_version_VERSION = "14.0.0";
+const dist_src_version_VERSION = "17.0.0";
 
 //# sourceMappingURL=version.js.map
 
@@ -40150,6 +40265,12 @@ const Endpoints = {
     ],
     deleteArtifact: [
       "DELETE /repos/{owner}/{repo}/actions/artifacts/{artifact_id}"
+    ],
+    deleteCustomImageFromOrg: [
+      "DELETE /orgs/{org}/actions/hosted-runners/images/custom/{image_definition_id}"
+    ],
+    deleteCustomImageVersionFromOrg: [
+      "DELETE /orgs/{org}/actions/hosted-runners/images/custom/{image_definition_id}/versions/{version}"
     ],
     deleteEnvironmentSecret: [
       "DELETE /repos/{owner}/{repo}/environments/{environment_name}/secrets/{secret_name}"
@@ -40224,6 +40345,12 @@ const Endpoints = {
       "GET /repos/{owner}/{repo}/actions/permissions/selected-actions"
     ],
     getArtifact: ["GET /repos/{owner}/{repo}/actions/artifacts/{artifact_id}"],
+    getCustomImageForOrg: [
+      "GET /orgs/{org}/actions/hosted-runners/images/custom/{image_definition_id}"
+    ],
+    getCustomImageVersionForOrg: [
+      "GET /orgs/{org}/actions/hosted-runners/images/custom/{image_definition_id}/versions/{version}"
+    ],
     getCustomOidcSubClaimForRepo: [
       "GET /repos/{owner}/{repo}/actions/oidc/customization/sub"
     ],
@@ -40303,6 +40430,12 @@ const Endpoints = {
       "GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/timing"
     ],
     listArtifactsForRepo: ["GET /repos/{owner}/{repo}/actions/artifacts"],
+    listCustomImageVersionsForOrg: [
+      "GET /orgs/{org}/actions/hosted-runners/images/custom/{image_definition_id}/versions"
+    ],
+    listCustomImagesForOrg: [
+      "GET /orgs/{org}/actions/hosted-runners/images/custom"
+    ],
     listEnvironmentSecrets: [
       "GET /repos/{owner}/{repo}/environments/{environment_name}/secrets"
     ],
@@ -40561,8 +40694,17 @@ const Endpoints = {
     getGithubActionsBillingUser: [
       "GET /users/{username}/settings/billing/actions"
     ],
+    getGithubBillingPremiumRequestUsageReportOrg: [
+      "GET /organizations/{org}/settings/billing/premium_request/usage"
+    ],
+    getGithubBillingPremiumRequestUsageReportUser: [
+      "GET /users/{username}/settings/billing/premium_request/usage"
+    ],
     getGithubBillingUsageReportOrg: [
       "GET /organizations/{org}/settings/billing/usage"
+    ],
+    getGithubBillingUsageReportUser: [
+      "GET /users/{username}/settings/billing/usage"
     ],
     getGithubPackagesBillingOrg: ["GET /orgs/{org}/settings/billing/packages"],
     getGithubPackagesBillingUser: [
@@ -40862,6 +41004,7 @@ const Endpoints = {
     ],
     listCopilotSeats: ["GET /orgs/{org}/copilot/billing/seats"]
   },
+  credentials: { revoke: ["POST /credentials/revoke"] },
   dependabot: {
     addSelectedRepoToOrgSecret: [
       "PUT /orgs/{org}/dependabot/secrets/{secret_name}/repositories/{repository_id}"
@@ -40898,11 +41041,20 @@ const Endpoints = {
     removeSelectedRepoFromOrgSecret: [
       "DELETE /orgs/{org}/dependabot/secrets/{secret_name}/repositories/{repository_id}"
     ],
+    repositoryAccessForOrg: [
+      "GET /organizations/{org}/dependabot/repository-access"
+    ],
+    setRepositoryAccessDefaultLevel: [
+      "PUT /organizations/{org}/dependabot/repository-access/default-level"
+    ],
     setSelectedReposForOrgSecret: [
       "PUT /orgs/{org}/dependabot/secrets/{secret_name}/repositories"
     ],
     updateAlert: [
       "PATCH /repos/{owner}/{repo}/dependabot/alerts/{alert_number}"
+    ],
+    updateRepositoryAccessForOrg: [
+      "PATCH /organizations/{org}/dependabot/repository-access"
     ]
   },
   dependencyGraph: {
@@ -40915,6 +41067,51 @@ const Endpoints = {
     exportSbom: ["GET /repos/{owner}/{repo}/dependency-graph/sbom"]
   },
   emojis: { get: ["GET /emojis"] },
+  enterpriseTeamMemberships: {
+    add: [
+      "PUT /enterprises/{enterprise}/teams/{enterprise-team}/memberships/{username}"
+    ],
+    bulkAdd: [
+      "POST /enterprises/{enterprise}/teams/{enterprise-team}/memberships/add"
+    ],
+    bulkRemove: [
+      "POST /enterprises/{enterprise}/teams/{enterprise-team}/memberships/remove"
+    ],
+    get: [
+      "GET /enterprises/{enterprise}/teams/{enterprise-team}/memberships/{username}"
+    ],
+    list: ["GET /enterprises/{enterprise}/teams/{enterprise-team}/memberships"],
+    remove: [
+      "DELETE /enterprises/{enterprise}/teams/{enterprise-team}/memberships/{username}"
+    ]
+  },
+  enterpriseTeamOrganizations: {
+    add: [
+      "PUT /enterprises/{enterprise}/teams/{enterprise-team}/organizations/{org}"
+    ],
+    bulkAdd: [
+      "POST /enterprises/{enterprise}/teams/{enterprise-team}/organizations/add"
+    ],
+    bulkRemove: [
+      "POST /enterprises/{enterprise}/teams/{enterprise-team}/organizations/remove"
+    ],
+    delete: [
+      "DELETE /enterprises/{enterprise}/teams/{enterprise-team}/organizations/{org}"
+    ],
+    getAssignment: [
+      "GET /enterprises/{enterprise}/teams/{enterprise-team}/organizations/{org}"
+    ],
+    getAssignments: [
+      "GET /enterprises/{enterprise}/teams/{enterprise-team}/organizations"
+    ]
+  },
+  enterpriseTeams: {
+    create: ["POST /enterprises/{enterprise}/teams"],
+    delete: ["DELETE /enterprises/{enterprise}/teams/{team_slug}"],
+    get: ["GET /enterprises/{enterprise}/teams/{team_slug}"],
+    list: ["GET /enterprises/{enterprise}/teams"],
+    update: ["PATCH /enterprises/{enterprise}/teams/{team_slug}"]
+  },
   gists: {
     checkIsStarred: ["GET /gists/{gist_id}/star"],
     create: ["POST /gists"],
@@ -41008,6 +41205,9 @@ const Endpoints = {
     addAssignees: [
       "POST /repos/{owner}/{repo}/issues/{issue_number}/assignees"
     ],
+    addBlockedByDependency: [
+      "POST /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by"
+    ],
     addLabels: ["POST /repos/{owner}/{repo}/issues/{issue_number}/labels"],
     addSubIssue: [
       "POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues"
@@ -41034,10 +41234,17 @@ const Endpoints = {
     getEvent: ["GET /repos/{owner}/{repo}/issues/events/{event_id}"],
     getLabel: ["GET /repos/{owner}/{repo}/labels/{name}"],
     getMilestone: ["GET /repos/{owner}/{repo}/milestones/{milestone_number}"],
+    getParent: ["GET /repos/{owner}/{repo}/issues/{issue_number}/parent"],
     list: ["GET /issues"],
     listAssignees: ["GET /repos/{owner}/{repo}/assignees"],
     listComments: ["GET /repos/{owner}/{repo}/issues/{issue_number}/comments"],
     listCommentsForRepo: ["GET /repos/{owner}/{repo}/issues/comments"],
+    listDependenciesBlockedBy: [
+      "GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by"
+    ],
+    listDependenciesBlocking: [
+      "GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocking"
+    ],
     listEvents: ["GET /repos/{owner}/{repo}/issues/{issue_number}/events"],
     listEventsForRepo: ["GET /repos/{owner}/{repo}/issues/events"],
     listEventsForTimeline: [
@@ -41063,6 +41270,9 @@ const Endpoints = {
     ],
     removeAssignees: [
       "DELETE /repos/{owner}/{repo}/issues/{issue_number}/assignees"
+    ],
+    removeDependencyBlockedBy: [
+      "DELETE /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by/{issue_id}"
     ],
     removeLabel: [
       "DELETE /repos/{owner}/{repo}/issues/{issue_number}/labels/{name}"
@@ -41166,30 +41376,61 @@ const Endpoints = {
     convertMemberToOutsideCollaborator: [
       "PUT /orgs/{org}/outside_collaborators/{username}"
     ],
+    createArtifactStorageRecord: [
+      "POST /orgs/{org}/artifacts/metadata/storage-record"
+    ],
     createInvitation: ["POST /orgs/{org}/invitations"],
     createIssueType: ["POST /orgs/{org}/issue-types"],
-    createOrUpdateCustomProperties: ["PATCH /orgs/{org}/properties/schema"],
-    createOrUpdateCustomPropertiesValuesForRepos: [
-      "PATCH /orgs/{org}/properties/values"
+    createWebhook: ["POST /orgs/{org}/hooks"],
+    customPropertiesForOrgsCreateOrUpdateOrganizationValues: [
+      "PATCH /organizations/{org}/org-properties/values"
     ],
-    createOrUpdateCustomProperty: [
+    customPropertiesForOrgsGetOrganizationValues: [
+      "GET /organizations/{org}/org-properties/values"
+    ],
+    customPropertiesForReposCreateOrUpdateOrganizationDefinition: [
       "PUT /orgs/{org}/properties/schema/{custom_property_name}"
     ],
-    createWebhook: ["POST /orgs/{org}/hooks"],
+    customPropertiesForReposCreateOrUpdateOrganizationDefinitions: [
+      "PATCH /orgs/{org}/properties/schema"
+    ],
+    customPropertiesForReposCreateOrUpdateOrganizationValues: [
+      "PATCH /orgs/{org}/properties/values"
+    ],
+    customPropertiesForReposDeleteOrganizationDefinition: [
+      "DELETE /orgs/{org}/properties/schema/{custom_property_name}"
+    ],
+    customPropertiesForReposGetOrganizationDefinition: [
+      "GET /orgs/{org}/properties/schema/{custom_property_name}"
+    ],
+    customPropertiesForReposGetOrganizationDefinitions: [
+      "GET /orgs/{org}/properties/schema"
+    ],
+    customPropertiesForReposGetOrganizationValues: [
+      "GET /orgs/{org}/properties/values"
+    ],
     delete: ["DELETE /orgs/{org}"],
+    deleteAttestationsBulk: ["POST /orgs/{org}/attestations/delete-request"],
+    deleteAttestationsById: [
+      "DELETE /orgs/{org}/attestations/{attestation_id}"
+    ],
+    deleteAttestationsBySubjectDigest: [
+      "DELETE /orgs/{org}/attestations/digest/{subject_digest}"
+    ],
     deleteIssueType: ["DELETE /orgs/{org}/issue-types/{issue_type_id}"],
     deleteWebhook: ["DELETE /orgs/{org}/hooks/{hook_id}"],
-    enableOrDisableSecurityProductOnAllOrgRepos: [
-      "POST /orgs/{org}/{security_product}/{enablement}",
-      {},
-      {
-        deprecated: "octokit.rest.orgs.enableOrDisableSecurityProductOnAllOrgRepos() is deprecated, see https://docs.github.com/rest/orgs/orgs#enable-or-disable-a-security-feature-for-an-organization"
-      }
+    disableSelectedRepositoryImmutableReleasesOrganization: [
+      "DELETE /orgs/{org}/settings/immutable-releases/repositories/{repository_id}"
+    ],
+    enableSelectedRepositoryImmutableReleasesOrganization: [
+      "PUT /orgs/{org}/settings/immutable-releases/repositories/{repository_id}"
     ],
     get: ["GET /orgs/{org}"],
-    getAllCustomProperties: ["GET /orgs/{org}/properties/schema"],
-    getCustomProperty: [
-      "GET /orgs/{org}/properties/schema/{custom_property_name}"
+    getImmutableReleasesSettings: [
+      "GET /orgs/{org}/settings/immutable-releases"
+    ],
+    getImmutableReleasesSettingsRepositories: [
+      "GET /orgs/{org}/settings/immutable-releases/repositories"
     ],
     getMembershipForAuthenticatedUser: ["GET /user/memberships/orgs/{org}"],
     getMembershipForUser: ["GET /orgs/{org}/memberships/{username}"],
@@ -41205,9 +41446,15 @@ const Endpoints = {
     ],
     list: ["GET /organizations"],
     listAppInstallations: ["GET /orgs/{org}/installations"],
+    listArtifactStorageRecords: [
+      "GET /orgs/{org}/artifacts/{subject_digest}/metadata/storage-records"
+    ],
+    listAttestationRepositories: ["GET /orgs/{org}/attestations/repositories"],
     listAttestations: ["GET /orgs/{org}/attestations/{subject_digest}"],
+    listAttestationsBulk: [
+      "POST /orgs/{org}/attestations/bulk-list{?per_page,before,after}"
+    ],
     listBlockedUsers: ["GET /orgs/{org}/blocks"],
-    listCustomPropertiesValuesForRepos: ["GET /orgs/{org}/properties/values"],
     listFailedInvitations: ["GET /orgs/{org}/failed_invitations"],
     listForAuthenticatedUser: ["GET /user/orgs"],
     listForUser: ["GET /users/{username}/orgs"],
@@ -41245,9 +41492,6 @@ const Endpoints = {
     redeliverWebhookDelivery: [
       "POST /orgs/{org}/hooks/{hook_id}/deliveries/{delivery_id}/attempts"
     ],
-    removeCustomProperty: [
-      "DELETE /orgs/{org}/properties/schema/{custom_property_name}"
-    ],
     removeMember: ["DELETE /orgs/{org}/members/{username}"],
     removeMembershipForUser: ["DELETE /orgs/{org}/memberships/{username}"],
     removeOutsideCollaborator: [
@@ -41280,6 +41524,12 @@ const Endpoints = {
     ],
     revokeOrgRoleUser: [
       "DELETE /orgs/{org}/organization-roles/users/{username}/{role_id}"
+    ],
+    setImmutableReleasesSettings: [
+      "PUT /orgs/{org}/settings/immutable-releases"
+    ],
+    setImmutableReleasesSettingsRepositories: [
+      "PUT /orgs/{org}/settings/immutable-releases/repositories"
     ],
     setMembershipForUser: ["PUT /orgs/{org}/memberships/{username}"],
     setPublicMembershipForAuthenticatedUser: [
@@ -41398,6 +41648,46 @@ const Endpoints = {
     listOrgPrivateRegistries: ["GET /orgs/{org}/private-registries"],
     updateOrgPrivateRegistry: [
       "PATCH /orgs/{org}/private-registries/{secret_name}"
+    ]
+  },
+  projects: {
+    addItemForOrg: ["POST /orgs/{org}/projectsV2/{project_number}/items"],
+    addItemForUser: [
+      "POST /users/{username}/projectsV2/{project_number}/items"
+    ],
+    deleteItemForOrg: [
+      "DELETE /orgs/{org}/projectsV2/{project_number}/items/{item_id}"
+    ],
+    deleteItemForUser: [
+      "DELETE /users/{username}/projectsV2/{project_number}/items/{item_id}"
+    ],
+    getFieldForOrg: [
+      "GET /orgs/{org}/projectsV2/{project_number}/fields/{field_id}"
+    ],
+    getFieldForUser: [
+      "GET /users/{username}/projectsV2/{project_number}/fields/{field_id}"
+    ],
+    getForOrg: ["GET /orgs/{org}/projectsV2/{project_number}"],
+    getForUser: ["GET /users/{username}/projectsV2/{project_number}"],
+    getOrgItem: ["GET /orgs/{org}/projectsV2/{project_number}/items/{item_id}"],
+    getUserItem: [
+      "GET /users/{username}/projectsV2/{project_number}/items/{item_id}"
+    ],
+    listFieldsForOrg: ["GET /orgs/{org}/projectsV2/{project_number}/fields"],
+    listFieldsForUser: [
+      "GET /users/{username}/projectsV2/{project_number}/fields"
+    ],
+    listForOrg: ["GET /orgs/{org}/projectsV2"],
+    listForUser: ["GET /users/{username}/projectsV2"],
+    listItemsForOrg: ["GET /orgs/{org}/projectsV2/{project_number}/items"],
+    listItemsForUser: [
+      "GET /users/{username}/projectsV2/{project_number}/items"
+    ],
+    updateItemForOrg: [
+      "PATCH /orgs/{org}/projectsV2/{project_number}/items/{item_id}"
+    ],
+    updateItemForUser: [
+      "PATCH /users/{username}/projectsV2/{project_number}/items/{item_id}"
     ]
   },
   pulls: {
@@ -41560,6 +41850,7 @@ const Endpoints = {
       "GET /repos/{owner}/{repo}/automated-security-fixes"
     ],
     checkCollaborator: ["GET /repos/{owner}/{repo}/collaborators/{username}"],
+    checkImmutableReleases: ["GET /repos/{owner}/{repo}/immutable-releases"],
     checkPrivateVulnerabilityReporting: [
       "GET /repos/{owner}/{repo}/private-vulnerability-reporting"
     ],
@@ -41595,9 +41886,6 @@ const Endpoints = {
     createForAuthenticatedUser: ["POST /user/repos"],
     createFork: ["POST /repos/{owner}/{repo}/forks"],
     createInOrg: ["POST /orgs/{org}/repos"],
-    createOrUpdateCustomPropertiesValues: [
-      "PATCH /repos/{owner}/{repo}/properties/values"
-    ],
     createOrUpdateEnvironment: [
       "PUT /repos/{owner}/{repo}/environments/{environment_name}"
     ],
@@ -41611,6 +41899,12 @@ const Endpoints = {
       "POST /repos/{template_owner}/{template_repo}/generate"
     ],
     createWebhook: ["POST /repos/{owner}/{repo}/hooks"],
+    customPropertiesForReposCreateOrUpdateRepositoryValues: [
+      "PATCH /repos/{owner}/{repo}/properties/values"
+    ],
+    customPropertiesForReposGetRepositoryValues: [
+      "GET /repos/{owner}/{repo}/properties/values"
+    ],
     declineInvitation: [
       "DELETE /user/repository_invitations/{invitation_id}",
       {},
@@ -41665,6 +41959,9 @@ const Endpoints = {
     disableDeploymentProtectionRule: [
       "DELETE /repos/{owner}/{repo}/environments/{environment_name}/deployment_protection_rules/{protection_rule_id}"
     ],
+    disableImmutableReleases: [
+      "DELETE /repos/{owner}/{repo}/immutable-releases"
+    ],
     disablePrivateVulnerabilityReporting: [
       "DELETE /repos/{owner}/{repo}/private-vulnerability-reporting"
     ],
@@ -41681,6 +41978,7 @@ const Endpoints = {
     enableAutomatedSecurityFixes: [
       "PUT /repos/{owner}/{repo}/automated-security-fixes"
     ],
+    enableImmutableReleases: ["PUT /repos/{owner}/{repo}/immutable-releases"],
     enablePrivateVulnerabilityReporting: [
       "PUT /repos/{owner}/{repo}/private-vulnerability-reporting"
     ],
@@ -41732,7 +42030,6 @@ const Endpoints = {
     getCustomDeploymentProtectionRule: [
       "GET /repos/{owner}/{repo}/environments/{environment_name}/deployment_protection_rules/{protection_rule_id}"
     ],
-    getCustomPropertiesValues: ["GET /repos/{owner}/{repo}/properties/values"],
     getDeployKey: ["GET /repos/{owner}/{repo}/keys/{key_id}"],
     getDeployment: ["GET /repos/{owner}/{repo}/deployments/{deployment_id}"],
     getDeploymentBranchPolicy: [
@@ -41950,13 +42247,7 @@ const Endpoints = {
   search: {
     code: ["GET /search/code"],
     commits: ["GET /search/commits"],
-    issuesAndPullRequests: [
-      "GET /search/issues",
-      {},
-      {
-        deprecated: "octokit.rest.search.issuesAndPullRequests() is deprecated, see https://docs.github.com/rest/search/search#search-issues-and-pull-requests"
-      }
-    ],
+    issuesAndPullRequests: ["GET /search/issues"],
     labels: ["GET /search/labels"],
     repos: ["GET /search/repositories"],
     topics: ["GET /search/topics"],
@@ -41970,16 +42261,19 @@ const Endpoints = {
       "GET /repos/{owner}/{repo}/secret-scanning/alerts/{alert_number}"
     ],
     getScanHistory: ["GET /repos/{owner}/{repo}/secret-scanning/scan-history"],
-    listAlertsForEnterprise: [
-      "GET /enterprises/{enterprise}/secret-scanning/alerts"
-    ],
     listAlertsForOrg: ["GET /orgs/{org}/secret-scanning/alerts"],
     listAlertsForRepo: ["GET /repos/{owner}/{repo}/secret-scanning/alerts"],
     listLocationsForAlert: [
       "GET /repos/{owner}/{repo}/secret-scanning/alerts/{alert_number}/locations"
     ],
+    listOrgPatternConfigs: [
+      "GET /orgs/{org}/secret-scanning/pattern-configurations"
+    ],
     updateAlert: [
       "PATCH /repos/{owner}/{repo}/secret-scanning/alerts/{alert_number}"
+    ],
+    updateOrgPatternConfigs: [
+      "PATCH /orgs/{org}/secret-scanning/pattern-configurations"
     ]
   },
   securityAdvisories: {
@@ -42089,6 +42383,15 @@ const Endpoints = {
     ],
     createPublicSshKeyForAuthenticatedUser: ["POST /user/keys"],
     createSshSigningKeyForAuthenticatedUser: ["POST /user/ssh_signing_keys"],
+    deleteAttestationsBulk: [
+      "POST /users/{username}/attestations/delete-request"
+    ],
+    deleteAttestationsById: [
+      "DELETE /users/{username}/attestations/{attestation_id}"
+    ],
+    deleteAttestationsBySubjectDigest: [
+      "DELETE /users/{username}/attestations/digest/{subject_digest}"
+    ],
     deleteEmailForAuthenticated: [
       "DELETE /user/emails",
       {},
@@ -42133,6 +42436,9 @@ const Endpoints = {
     ],
     list: ["GET /users"],
     listAttestations: ["GET /users/{username}/attestations/{subject_digest}"],
+    listAttestationsBulk: [
+      "POST /users/{username}/attestations/bulk-list{?per_page,before,after}"
+    ],
     listBlockedByAuthenticated: [
       "GET /user/blocks",
       {},
@@ -42604,7 +42910,7 @@ function throttling(octokit, octokitOptions) {
     const retryCount = ~~request.retryCount;
     request.retryCount = retryCount;
     options.request.retryCount = retryCount;
-    const { wantRetry, retryAfter = 0 } = await async function() {
+    const { wantRetry, retryAfter = 0 } = await (async function() {
       if (/\bsecondary rate\b/i.test(error.message)) {
         const retryAfter2 = Number(error.response.headers["retry-after"]) || state2.fallbackSecondaryRateRetryAfter;
         const wantRetry2 = await emitter.trigger(
@@ -42638,7 +42944,7 @@ function throttling(octokit, octokitOptions) {
         return { wantRetry: wantRetry2, retryAfter: retryAfter2 };
       }
       return {};
-    }();
+    })();
     if (wantRetry) {
       request.retryCount++;
       return retryAfter * state2.retryAfterBaseValue;
@@ -43173,12 +43479,13 @@ class dist_src_RequestError extends Error {
    */
   response;
   constructor(message, statusCode, options) {
-    super(message);
+    super(message, { cause: options.cause });
     this.name = "HttpError";
     this.status = Number.parseInt(statusCode);
     if (Number.isNaN(this.status)) {
       this.status = 0;
     }
+    /* v8 ignore else -- @preserve -- Bug with vitest coverage where it sees an else branch that doesn't exist */
     if ("response" in options) {
       this.response = options.response;
     }
@@ -43205,7 +43512,7 @@ class dist_src_RequestError extends Error {
 
 
 // pkg/dist-src/version.js
-var request_dist_bundle_VERSION = "0.0.0-development";
+var request_dist_bundle_VERSION = "10.0.7";
 
 // pkg/dist-src/defaults.js
 var dist_bundle_defaults_default = {
@@ -43229,6 +43536,7 @@ function request_dist_bundle_isPlainObject(value) {
 
 // pkg/dist-src/fetch-wrapper.js
 
+var request_dist_bundle_noop = () => "";
 async function dist_bundle_fetchWrapper(requestOptions) {
   const fetch = requestOptions.request?.fetch || globalThis.fetch;
   if (!fetch) {
@@ -43330,7 +43638,7 @@ async function dist_bundle_fetchWrapper(requestOptions) {
 async function dist_bundle_getResponseData(response) {
   const contentType = response.headers.get("content-type");
   if (!contentType) {
-    return response.text().catch(() => "");
+    return response.text().catch(request_dist_bundle_noop);
   }
   const mimetype = (0,fast_content_type_parse/* safeParse */.xL)(contentType);
   if (dist_bundle_isJSONResponse(mimetype)) {
@@ -43342,9 +43650,12 @@ async function dist_bundle_getResponseData(response) {
       return text;
     }
   } else if (mimetype.type.startsWith("text/") || mimetype.parameters.charset?.toLowerCase() === "utf-8") {
-    return response.text().catch(() => "");
+    return response.text().catch(request_dist_bundle_noop);
   } else {
-    return response.arrayBuffer().catch(() => new ArrayBuffer(0));
+    return response.arrayBuffer().catch(
+      /* v8 ignore next -- @preserve */
+      () => new ArrayBuffer(0)
+    );
   }
 }
 function dist_bundle_isJSONResponse(mimetype) {
@@ -43392,6 +43703,8 @@ function request_dist_bundle_withDefaults(oldEndpoint, newDefaults) {
 // pkg/dist-src/index.js
 var dist_bundle_request = request_dist_bundle_withDefaults(dist_bundle_endpoint, dist_bundle_defaults_default);
 
+/* v8 ignore next -- @preserve */
+/* v8 ignore else -- @preserve */
 
 ;// CONCATENATED MODULE: ./node_modules/@octokit/app/node_modules/@octokit/graphql/dist-bundle/index.js
 // pkg/dist-src/index.js
@@ -43576,7 +43889,7 @@ var dist_bundle_createTokenAuth = function createTokenAuth2(token) {
 
 
 ;// CONCATENATED MODULE: ./node_modules/@octokit/app/node_modules/@octokit/core/dist-src/version.js
-const core_dist_src_version_VERSION = "6.1.5";
+const core_dist_src_version_VERSION = "7.0.6";
 
 
 ;// CONCATENATED MODULE: ./node_modules/@octokit/app/node_modules/@octokit/core/dist-src/index.js
@@ -43586,10 +43899,25 @@ const core_dist_src_version_VERSION = "6.1.5";
 
 
 
-const dist_src_noop = () => {
+const core_dist_src_noop = () => {
 };
 const dist_src_consoleWarn = console.warn.bind(console);
 const dist_src_consoleError = console.error.bind(console);
+function dist_src_createLogger(logger = {}) {
+  if (typeof logger.debug !== "function") {
+    logger.debug = core_dist_src_noop;
+  }
+  if (typeof logger.info !== "function") {
+    logger.info = core_dist_src_noop;
+  }
+  if (typeof logger.warn !== "function") {
+    logger.warn = dist_src_consoleWarn;
+  }
+  if (typeof logger.error !== "function") {
+    logger.error = dist_src_consoleError;
+  }
+  return logger;
+}
 const dist_src_userAgentTrail = `octokit-core.js/${core_dist_src_version_VERSION} ${universal_user_agent_getUserAgent()}`;
 class dist_src_Octokit {
   static VERSION = core_dist_src_version_VERSION;
@@ -43657,15 +43985,7 @@ class dist_src_Octokit {
     }
     this.request = dist_bundle_request.defaults(requestDefaults);
     this.graphql = dist_bundle_withCustomRequest(this.request).defaults(requestDefaults);
-    this.log = Object.assign(
-      {
-        debug: dist_src_noop,
-        info: dist_src_noop,
-        warn: dist_src_consoleWarn,
-        error: dist_src_consoleError
-      },
-      options.log
-    );
+    this.log = dist_src_createLogger(options.log);
     this.hook = hook;
     if (!options.authStrategy) {
       if (!options.auth) {
@@ -44090,12 +44410,13 @@ class request_error_dist_src_RequestError extends Error {
    */
   response;
   constructor(message, statusCode, options) {
-    super(message);
+    super(message, { cause: options.cause });
     this.name = "HttpError";
     this.status = Number.parseInt(statusCode);
     if (Number.isNaN(this.status)) {
       this.status = 0;
     }
+    /* v8 ignore else -- @preserve -- Bug with vitest coverage where it sees an else branch that doesn't exist */
     if ("response" in options) {
       this.response = options.response;
     }
@@ -44122,7 +44443,7 @@ class request_error_dist_src_RequestError extends Error {
 
 
 // pkg/dist-src/version.js
-var _octokit_request_dist_bundle_VERSION = "0.0.0-development";
+var _octokit_request_dist_bundle_VERSION = "10.0.7";
 
 // pkg/dist-src/defaults.js
 var request_dist_bundle_defaults_default = {
@@ -44146,6 +44467,7 @@ function _octokit_request_dist_bundle_isPlainObject(value) {
 
 // pkg/dist-src/fetch-wrapper.js
 
+var _octokit_request_dist_bundle_noop = () => "";
 async function request_dist_bundle_fetchWrapper(requestOptions) {
   const fetch = requestOptions.request?.fetch || globalThis.fetch;
   if (!fetch) {
@@ -44247,7 +44569,7 @@ async function request_dist_bundle_fetchWrapper(requestOptions) {
 async function request_dist_bundle_getResponseData(response) {
   const contentType = response.headers.get("content-type");
   if (!contentType) {
-    return response.text().catch(() => "");
+    return response.text().catch(_octokit_request_dist_bundle_noop);
   }
   const mimetype = (0,fast_content_type_parse/* safeParse */.xL)(contentType);
   if (request_dist_bundle_isJSONResponse(mimetype)) {
@@ -44259,9 +44581,12 @@ async function request_dist_bundle_getResponseData(response) {
       return text;
     }
   } else if (mimetype.type.startsWith("text/") || mimetype.parameters.charset?.toLowerCase() === "utf-8") {
-    return response.text().catch(() => "");
+    return response.text().catch(_octokit_request_dist_bundle_noop);
   } else {
-    return response.arrayBuffer().catch(() => new ArrayBuffer(0));
+    return response.arrayBuffer().catch(
+      /* v8 ignore next -- @preserve */
+      () => new ArrayBuffer(0)
+    );
   }
 }
 function request_dist_bundle_isJSONResponse(mimetype) {
@@ -44309,6 +44634,8 @@ function _octokit_request_dist_bundle_withDefaults(oldEndpoint, newDefaults) {
 // pkg/dist-src/index.js
 var request_dist_bundle_request = _octokit_request_dist_bundle_withDefaults(endpoint_dist_bundle_endpoint, request_dist_bundle_defaults_default);
 
+/* v8 ignore next -- @preserve */
+/* v8 ignore else -- @preserve */
 
 ;// CONCATENATED MODULE: ./node_modules/@octokit/auth-oauth-app/node_modules/universal-user-agent/index.js
 function auth_oauth_app_node_modules_universal_user_agent_getUserAgent() {
@@ -44687,12 +45014,13 @@ class _octokit_request_error_dist_src_RequestError extends Error {
    */
   response;
   constructor(message, statusCode, options) {
-    super(message);
+    super(message, { cause: options.cause });
     this.name = "HttpError";
     this.status = Number.parseInt(statusCode);
     if (Number.isNaN(this.status)) {
       this.status = 0;
     }
+    /* v8 ignore else -- @preserve -- Bug with vitest coverage where it sees an else branch that doesn't exist */
     if ("response" in options) {
       this.response = options.response;
     }
@@ -44719,7 +45047,7 @@ class _octokit_request_error_dist_src_RequestError extends Error {
 
 
 // pkg/dist-src/version.js
-var node_modules_octokit_request_dist_bundle_VERSION = "0.0.0-development";
+var node_modules_octokit_request_dist_bundle_VERSION = "10.0.7";
 
 // pkg/dist-src/defaults.js
 var _octokit_request_dist_bundle_defaults_default = {
@@ -44743,6 +45071,7 @@ function node_modules_octokit_request_dist_bundle_isPlainObject(value) {
 
 // pkg/dist-src/fetch-wrapper.js
 
+var node_modules_octokit_request_dist_bundle_noop = () => "";
 async function _octokit_request_dist_bundle_fetchWrapper(requestOptions) {
   const fetch = requestOptions.request?.fetch || globalThis.fetch;
   if (!fetch) {
@@ -44844,7 +45173,7 @@ async function _octokit_request_dist_bundle_fetchWrapper(requestOptions) {
 async function _octokit_request_dist_bundle_getResponseData(response) {
   const contentType = response.headers.get("content-type");
   if (!contentType) {
-    return response.text().catch(() => "");
+    return response.text().catch(node_modules_octokit_request_dist_bundle_noop);
   }
   const mimetype = (0,fast_content_type_parse/* safeParse */.xL)(contentType);
   if (_octokit_request_dist_bundle_isJSONResponse(mimetype)) {
@@ -44856,9 +45185,12 @@ async function _octokit_request_dist_bundle_getResponseData(response) {
       return text;
     }
   } else if (mimetype.type.startsWith("text/") || mimetype.parameters.charset?.toLowerCase() === "utf-8") {
-    return response.text().catch(() => "");
+    return response.text().catch(node_modules_octokit_request_dist_bundle_noop);
   } else {
-    return response.arrayBuffer().catch(() => new ArrayBuffer(0));
+    return response.arrayBuffer().catch(
+      /* v8 ignore next -- @preserve */
+      () => new ArrayBuffer(0)
+    );
   }
 }
 function _octokit_request_dist_bundle_isJSONResponse(mimetype) {
@@ -44906,6 +45238,8 @@ function node_modules_octokit_request_dist_bundle_withDefaults(oldEndpoint, newD
 // pkg/dist-src/index.js
 var _octokit_request_dist_bundle_request = node_modules_octokit_request_dist_bundle_withDefaults(_octokit_endpoint_dist_bundle_endpoint, _octokit_request_dist_bundle_defaults_default);
 
+/* v8 ignore next -- @preserve */
+/* v8 ignore else -- @preserve */
 
 ;// CONCATENATED MODULE: ./node_modules/@octokit/auth-oauth-user/node_modules/universal-user-agent/index.js
 function auth_oauth_user_node_modules_universal_user_agent_getUserAgent() {
@@ -45284,12 +45618,13 @@ class node_modules_octokit_request_error_dist_src_RequestError extends Error {
    */
   response;
   constructor(message, statusCode, options) {
-    super(message);
+    super(message, { cause: options.cause });
     this.name = "HttpError";
     this.status = Number.parseInt(statusCode);
     if (Number.isNaN(this.status)) {
       this.status = 0;
     }
+    /* v8 ignore else -- @preserve -- Bug with vitest coverage where it sees an else branch that doesn't exist */
     if ("response" in options) {
       this.response = options.response;
     }
@@ -45316,7 +45651,7 @@ class node_modules_octokit_request_error_dist_src_RequestError extends Error {
 
 
 // pkg/dist-src/version.js
-var auth_oauth_user_node_modules_octokit_request_dist_bundle_VERSION = "0.0.0-development";
+var auth_oauth_user_node_modules_octokit_request_dist_bundle_VERSION = "10.0.7";
 
 // pkg/dist-src/defaults.js
 var node_modules_octokit_request_dist_bundle_defaults_default = {
@@ -45340,6 +45675,7 @@ function auth_oauth_user_node_modules_octokit_request_dist_bundle_isPlainObject(
 
 // pkg/dist-src/fetch-wrapper.js
 
+var auth_oauth_user_node_modules_octokit_request_dist_bundle_noop = () => "";
 async function node_modules_octokit_request_dist_bundle_fetchWrapper(requestOptions) {
   const fetch = requestOptions.request?.fetch || globalThis.fetch;
   if (!fetch) {
@@ -45441,7 +45777,7 @@ async function node_modules_octokit_request_dist_bundle_fetchWrapper(requestOpti
 async function node_modules_octokit_request_dist_bundle_getResponseData(response) {
   const contentType = response.headers.get("content-type");
   if (!contentType) {
-    return response.text().catch(() => "");
+    return response.text().catch(auth_oauth_user_node_modules_octokit_request_dist_bundle_noop);
   }
   const mimetype = (0,fast_content_type_parse/* safeParse */.xL)(contentType);
   if (node_modules_octokit_request_dist_bundle_isJSONResponse(mimetype)) {
@@ -45453,9 +45789,12 @@ async function node_modules_octokit_request_dist_bundle_getResponseData(response
       return text;
     }
   } else if (mimetype.type.startsWith("text/") || mimetype.parameters.charset?.toLowerCase() === "utf-8") {
-    return response.text().catch(() => "");
+    return response.text().catch(auth_oauth_user_node_modules_octokit_request_dist_bundle_noop);
   } else {
-    return response.arrayBuffer().catch(() => new ArrayBuffer(0));
+    return response.arrayBuffer().catch(
+      /* v8 ignore next -- @preserve */
+      () => new ArrayBuffer(0)
+    );
   }
 }
 function node_modules_octokit_request_dist_bundle_isJSONResponse(mimetype) {
@@ -45503,6 +45842,8 @@ function auth_oauth_user_node_modules_octokit_request_dist_bundle_withDefaults(o
 // pkg/dist-src/index.js
 var node_modules_octokit_request_dist_bundle_request = auth_oauth_user_node_modules_octokit_request_dist_bundle_withDefaults(node_modules_octokit_endpoint_dist_bundle_endpoint, node_modules_octokit_request_dist_bundle_defaults_default);
 
+/* v8 ignore next -- @preserve */
+/* v8 ignore else -- @preserve */
 
 ;// CONCATENATED MODULE: ./node_modules/@octokit/auth-oauth-device/node_modules/universal-user-agent/index.js
 function auth_oauth_device_node_modules_universal_user_agent_getUserAgent() {
@@ -45881,12 +46222,13 @@ class auth_oauth_device_node_modules_octokit_request_error_dist_src_RequestError
    */
   response;
   constructor(message, statusCode, options) {
-    super(message);
+    super(message, { cause: options.cause });
     this.name = "HttpError";
     this.status = Number.parseInt(statusCode);
     if (Number.isNaN(this.status)) {
       this.status = 0;
     }
+    /* v8 ignore else -- @preserve -- Bug with vitest coverage where it sees an else branch that doesn't exist */
     if ("response" in options) {
       this.response = options.response;
     }
@@ -45913,7 +46255,7 @@ class auth_oauth_device_node_modules_octokit_request_error_dist_src_RequestError
 
 
 // pkg/dist-src/version.js
-var auth_oauth_device_node_modules_octokit_request_dist_bundle_VERSION = "0.0.0-development";
+var auth_oauth_device_node_modules_octokit_request_dist_bundle_VERSION = "10.0.7";
 
 // pkg/dist-src/defaults.js
 var auth_oauth_device_node_modules_octokit_request_dist_bundle_defaults_default = {
@@ -45937,6 +46279,7 @@ function auth_oauth_device_node_modules_octokit_request_dist_bundle_isPlainObjec
 
 // pkg/dist-src/fetch-wrapper.js
 
+var auth_oauth_device_node_modules_octokit_request_dist_bundle_noop = () => "";
 async function auth_oauth_device_node_modules_octokit_request_dist_bundle_fetchWrapper(requestOptions) {
   const fetch = requestOptions.request?.fetch || globalThis.fetch;
   if (!fetch) {
@@ -46038,7 +46381,7 @@ async function auth_oauth_device_node_modules_octokit_request_dist_bundle_fetchW
 async function auth_oauth_device_node_modules_octokit_request_dist_bundle_getResponseData(response) {
   const contentType = response.headers.get("content-type");
   if (!contentType) {
-    return response.text().catch(() => "");
+    return response.text().catch(auth_oauth_device_node_modules_octokit_request_dist_bundle_noop);
   }
   const mimetype = (0,fast_content_type_parse/* safeParse */.xL)(contentType);
   if (auth_oauth_device_node_modules_octokit_request_dist_bundle_isJSONResponse(mimetype)) {
@@ -46050,9 +46393,12 @@ async function auth_oauth_device_node_modules_octokit_request_dist_bundle_getRes
       return text;
     }
   } else if (mimetype.type.startsWith("text/") || mimetype.parameters.charset?.toLowerCase() === "utf-8") {
-    return response.text().catch(() => "");
+    return response.text().catch(auth_oauth_device_node_modules_octokit_request_dist_bundle_noop);
   } else {
-    return response.arrayBuffer().catch(() => new ArrayBuffer(0));
+    return response.arrayBuffer().catch(
+      /* v8 ignore next -- @preserve */
+      () => new ArrayBuffer(0)
+    );
   }
 }
 function auth_oauth_device_node_modules_octokit_request_dist_bundle_isJSONResponse(mimetype) {
@@ -46100,6 +46446,8 @@ function auth_oauth_device_node_modules_octokit_request_dist_bundle_withDefaults
 // pkg/dist-src/index.js
 var auth_oauth_device_node_modules_octokit_request_dist_bundle_request = auth_oauth_device_node_modules_octokit_request_dist_bundle_withDefaults(auth_oauth_device_node_modules_octokit_endpoint_dist_bundle_endpoint, auth_oauth_device_node_modules_octokit_request_dist_bundle_defaults_default);
 
+/* v8 ignore next -- @preserve */
+/* v8 ignore else -- @preserve */
 
 ;// CONCATENATED MODULE: ./node_modules/@octokit/oauth-authorization-url/dist-src/index.js
 function oauthAuthorizationUrl(options) {
@@ -46132,10 +46480,8 @@ function urlBuilderAuthorize(base, options) {
   };
   let url = base;
   Object.keys(map).filter((k) => options[k] !== null).filter((k) => {
-    if (k !== "scopes")
-      return true;
-    if (options.clientType === "github-app")
-      return false;
+    if (k !== "scopes") return true;
+    if (options.clientType === "github-app") return false;
     return !Array.isArray(options[k]) || options[k].length > 0;
   }).map((key) => [map[key], `${options[key]}`]).forEach(([key, value], index) => {
     url += index === 0 ? `?` : "&";
@@ -46522,12 +46868,13 @@ class oauth_methods_node_modules_octokit_request_error_dist_src_RequestError ext
    */
   response;
   constructor(message, statusCode, options) {
-    super(message);
+    super(message, { cause: options.cause });
     this.name = "HttpError";
     this.status = Number.parseInt(statusCode);
     if (Number.isNaN(this.status)) {
       this.status = 0;
     }
+    /* v8 ignore else -- @preserve -- Bug with vitest coverage where it sees an else branch that doesn't exist */
     if ("response" in options) {
       this.response = options.response;
     }
@@ -46554,7 +46901,7 @@ class oauth_methods_node_modules_octokit_request_error_dist_src_RequestError ext
 
 
 // pkg/dist-src/version.js
-var oauth_methods_node_modules_octokit_request_dist_bundle_VERSION = "0.0.0-development";
+var oauth_methods_node_modules_octokit_request_dist_bundle_VERSION = "10.0.7";
 
 // pkg/dist-src/defaults.js
 var oauth_methods_node_modules_octokit_request_dist_bundle_defaults_default = {
@@ -46578,6 +46925,7 @@ function oauth_methods_node_modules_octokit_request_dist_bundle_isPlainObject(va
 
 // pkg/dist-src/fetch-wrapper.js
 
+var oauth_methods_node_modules_octokit_request_dist_bundle_noop = () => "";
 async function oauth_methods_node_modules_octokit_request_dist_bundle_fetchWrapper(requestOptions) {
   const fetch = requestOptions.request?.fetch || globalThis.fetch;
   if (!fetch) {
@@ -46679,7 +47027,7 @@ async function oauth_methods_node_modules_octokit_request_dist_bundle_fetchWrapp
 async function oauth_methods_node_modules_octokit_request_dist_bundle_getResponseData(response) {
   const contentType = response.headers.get("content-type");
   if (!contentType) {
-    return response.text().catch(() => "");
+    return response.text().catch(oauth_methods_node_modules_octokit_request_dist_bundle_noop);
   }
   const mimetype = (0,fast_content_type_parse/* safeParse */.xL)(contentType);
   if (oauth_methods_node_modules_octokit_request_dist_bundle_isJSONResponse(mimetype)) {
@@ -46691,9 +47039,12 @@ async function oauth_methods_node_modules_octokit_request_dist_bundle_getRespons
       return text;
     }
   } else if (mimetype.type.startsWith("text/") || mimetype.parameters.charset?.toLowerCase() === "utf-8") {
-    return response.text().catch(() => "");
+    return response.text().catch(oauth_methods_node_modules_octokit_request_dist_bundle_noop);
   } else {
-    return response.arrayBuffer().catch(() => new ArrayBuffer(0));
+    return response.arrayBuffer().catch(
+      /* v8 ignore next -- @preserve */
+      () => new ArrayBuffer(0)
+    );
   }
 }
 function oauth_methods_node_modules_octokit_request_dist_bundle_isJSONResponse(mimetype) {
@@ -46741,6 +47092,8 @@ function oauth_methods_node_modules_octokit_request_dist_bundle_withDefaults(old
 // pkg/dist-src/index.js
 var oauth_methods_node_modules_octokit_request_dist_bundle_request = oauth_methods_node_modules_octokit_request_dist_bundle_withDefaults(oauth_methods_node_modules_octokit_endpoint_dist_bundle_endpoint, oauth_methods_node_modules_octokit_request_dist_bundle_defaults_default);
 
+/* v8 ignore next -- @preserve */
+/* v8 ignore else -- @preserve */
 
 ;// CONCATENATED MODULE: ./node_modules/@octokit/oauth-methods/dist-bundle/index.js
 // pkg/dist-src/version.js
@@ -48556,9 +48909,19 @@ function getTimestamp(date) {
 async function getAppAuthentication({
   appId,
   privateKey,
-  timeDifference
+  timeDifference,
+  createJwt
 }) {
   try {
+    if (createJwt) {
+      const { jwt, expiresAt } = await createJwt(appId, timeDifference);
+      return {
+        type: "app",
+        token: jwt,
+        appId,
+        expiresAt
+      };
+    }
     const authOptions = {
       id: appId,
       privateKey
@@ -48969,7 +49332,7 @@ async function sendRequestWithRetries(state, request, options, createdAt, retrie
 }
 
 // pkg/dist-src/version.js
-var dist_node_VERSION = "7.2.1";
+var dist_node_VERSION = "8.1.2";
 
 // pkg/dist-src/index.js
 
@@ -48977,20 +49340,22 @@ function createAppAuth(options) {
   if (!options.appId) {
     throw new Error("[@octokit/auth-app] appId option is required");
   }
-  if (!options.privateKey) {
+  if (!options.privateKey && !options.createJwt) {
     throw new Error("[@octokit/auth-app] privateKey option is required");
+  } else if (options.privateKey && options.createJwt) {
+    throw new Error(
+      "[@octokit/auth-app] privateKey and createJwt options are mutually exclusive"
+    );
   }
   if ("installationId" in options && !options.installationId) {
     throw new Error(
       "[@octokit/auth-app] installationId is set to a falsy value"
     );
   }
-  const log = Object.assign(
-    {
-      warn: console.warn.bind(console)
-    },
-    options.log
-  );
+  const log = options.log || {};
+  if (typeof log.warn !== "function") {
+    log.warn = console.warn.bind(console);
+  }
   const request = options.request || request_dist_bundle_request.defaults({
     headers: {
       "user-agent": `octokit-auth-app.js/${dist_node_VERSION} ${node_modules_universal_user_agent_getUserAgent()}`
@@ -49541,12 +49906,13 @@ class oauth_app_node_modules_octokit_request_error_dist_src_RequestError extends
    */
   response;
   constructor(message, statusCode, options) {
-    super(message);
+    super(message, { cause: options.cause });
     this.name = "HttpError";
     this.status = Number.parseInt(statusCode);
     if (Number.isNaN(this.status)) {
       this.status = 0;
     }
+    /* v8 ignore else -- @preserve -- Bug with vitest coverage where it sees an else branch that doesn't exist */
     if ("response" in options) {
       this.response = options.response;
     }
@@ -49573,7 +49939,7 @@ class oauth_app_node_modules_octokit_request_error_dist_src_RequestError extends
 
 
 // pkg/dist-src/version.js
-var oauth_app_node_modules_octokit_request_dist_bundle_VERSION = "0.0.0-development";
+var oauth_app_node_modules_octokit_request_dist_bundle_VERSION = "10.0.7";
 
 // pkg/dist-src/defaults.js
 var oauth_app_node_modules_octokit_request_dist_bundle_defaults_default = {
@@ -49597,6 +49963,7 @@ function oauth_app_node_modules_octokit_request_dist_bundle_isPlainObject(value)
 
 // pkg/dist-src/fetch-wrapper.js
 
+var oauth_app_node_modules_octokit_request_dist_bundle_noop = () => "";
 async function oauth_app_node_modules_octokit_request_dist_bundle_fetchWrapper(requestOptions) {
   const fetch = requestOptions.request?.fetch || globalThis.fetch;
   if (!fetch) {
@@ -49698,7 +50065,7 @@ async function oauth_app_node_modules_octokit_request_dist_bundle_fetchWrapper(r
 async function oauth_app_node_modules_octokit_request_dist_bundle_getResponseData(response) {
   const contentType = response.headers.get("content-type");
   if (!contentType) {
-    return response.text().catch(() => "");
+    return response.text().catch(oauth_app_node_modules_octokit_request_dist_bundle_noop);
   }
   const mimetype = (0,fast_content_type_parse/* safeParse */.xL)(contentType);
   if (oauth_app_node_modules_octokit_request_dist_bundle_isJSONResponse(mimetype)) {
@@ -49710,9 +50077,12 @@ async function oauth_app_node_modules_octokit_request_dist_bundle_getResponseDat
       return text;
     }
   } else if (mimetype.type.startsWith("text/") || mimetype.parameters.charset?.toLowerCase() === "utf-8") {
-    return response.text().catch(() => "");
+    return response.text().catch(oauth_app_node_modules_octokit_request_dist_bundle_noop);
   } else {
-    return response.arrayBuffer().catch(() => new ArrayBuffer(0));
+    return response.arrayBuffer().catch(
+      /* v8 ignore next -- @preserve */
+      () => new ArrayBuffer(0)
+    );
   }
 }
 function oauth_app_node_modules_octokit_request_dist_bundle_isJSONResponse(mimetype) {
@@ -49760,6 +50130,8 @@ function oauth_app_node_modules_octokit_request_dist_bundle_withDefaults(oldEndp
 // pkg/dist-src/index.js
 var oauth_app_node_modules_octokit_request_dist_bundle_request = oauth_app_node_modules_octokit_request_dist_bundle_withDefaults(oauth_app_node_modules_octokit_endpoint_dist_bundle_endpoint, oauth_app_node_modules_octokit_request_dist_bundle_defaults_default);
 
+/* v8 ignore next -- @preserve */
+/* v8 ignore else -- @preserve */
 
 ;// CONCATENATED MODULE: ./node_modules/@octokit/oauth-app/node_modules/@octokit/graphql/dist-bundle/index.js
 // pkg/dist-src/index.js
@@ -49944,7 +50316,7 @@ var auth_token_dist_bundle_createTokenAuth = function createTokenAuth2(token) {
 
 
 ;// CONCATENATED MODULE: ./node_modules/@octokit/oauth-app/node_modules/@octokit/core/dist-src/version.js
-const _octokit_core_dist_src_version_VERSION = "6.1.5";
+const _octokit_core_dist_src_version_VERSION = "7.0.6";
 
 
 ;// CONCATENATED MODULE: ./node_modules/@octokit/oauth-app/node_modules/@octokit/core/dist-src/index.js
@@ -49954,10 +50326,25 @@ const _octokit_core_dist_src_version_VERSION = "6.1.5";
 
 
 
-const core_dist_src_noop = () => {
+const _octokit_core_dist_src_noop = () => {
 };
 const core_dist_src_consoleWarn = console.warn.bind(console);
 const core_dist_src_consoleError = console.error.bind(console);
+function core_dist_src_createLogger(logger = {}) {
+  if (typeof logger.debug !== "function") {
+    logger.debug = _octokit_core_dist_src_noop;
+  }
+  if (typeof logger.info !== "function") {
+    logger.info = _octokit_core_dist_src_noop;
+  }
+  if (typeof logger.warn !== "function") {
+    logger.warn = core_dist_src_consoleWarn;
+  }
+  if (typeof logger.error !== "function") {
+    logger.error = core_dist_src_consoleError;
+  }
+  return logger;
+}
 const core_dist_src_userAgentTrail = `octokit-core.js/${_octokit_core_dist_src_version_VERSION} ${oauth_app_node_modules_universal_user_agent_getUserAgent()}`;
 class core_dist_src_Octokit {
   static VERSION = _octokit_core_dist_src_version_VERSION;
@@ -50025,15 +50412,7 @@ class core_dist_src_Octokit {
     }
     this.request = oauth_app_node_modules_octokit_request_dist_bundle_request.defaults(requestDefaults);
     this.graphql = graphql_dist_bundle_withCustomRequest(this.request).defaults(requestDefaults);
-    this.log = Object.assign(
-      {
-        debug: core_dist_src_noop,
-        info: core_dist_src_noop,
-        warn: core_dist_src_consoleWarn,
-        error: core_dist_src_consoleError
-      },
-      options.log
-    );
+    this.log = core_dist_src_createLogger(options.log);
     this.hook = hook;
     if (!options.authStrategy) {
       if (!options.auth) {
@@ -50161,7 +50540,7 @@ var createUnauthenticatedAuth = function createUnauthenticatedAuth2(options) {
 
 
 // pkg/dist-src/version.js
-var oauth_app_dist_node_VERSION = "7.1.6";
+var oauth_app_dist_node_VERSION = "8.0.3";
 
 // pkg/dist-src/add-event-handler.js
 function addEventHandler(state, eventName, eventHandler) {
@@ -50893,7 +51272,10 @@ var OAuthApp = class {
     };
     this.on = addEventHandler.bind(null, state);
     this.octokit = octokit;
-    this.getUserOctokit = getUserOctokitWithState.bind(null, state);
+    this.getUserOctokit = getUserOctokitWithState.bind(
+      null,
+      state
+    );
     this.getWebFlowAuthorizationUrl = getWebFlowAuthorizationUrlWithState.bind(
       null,
       state
@@ -50944,7 +51326,7 @@ const external_node_buffer_namespaceObject = __WEBPACK_EXTERNAL_createRequire(im
 
 
 // pkg/dist-src/version.js
-var webhooks_methods_dist_node_VERSION = "5.1.1";
+var webhooks_methods_dist_node_VERSION = "6.0.0";
 
 // pkg/dist-src/node/sign.js
 async function sign(secret, payload) {
@@ -51003,16 +51385,24 @@ async function verifyWithFallback(secret, payload, signature, additionalSecrets)
 
 
 ;// CONCATENATED MODULE: ./node_modules/@octokit/webhooks/dist-bundle/index.js
-// pkg/dist-src/createLogger.js
-var createLogger = (logger) => ({
-  debug: () => {
-  },
-  info: () => {
-  },
-  warn: console.warn.bind(console),
-  error: console.error.bind(console),
-  ...logger
-});
+// pkg/dist-src/create-logger.js
+var dist_bundle_createLogger = (logger = {}) => {
+  if (typeof logger.debug !== "function") {
+    logger.debug = () => {
+    };
+  }
+  if (typeof logger.info !== "function") {
+    logger.info = () => {
+    };
+  }
+  if (typeof logger.warn !== "function") {
+    logger.warn = console.warn.bind(console);
+  }
+  if (typeof logger.error !== "function") {
+    logger.error = console.error.bind(console);
+  }
+  return logger;
+};
 
 // pkg/dist-src/generated/webhook-names.js
 var emitterEventNames = [
@@ -51334,6 +51724,37 @@ var emitterEventNames = [
   "workflow_run.requested"
 ];
 
+// pkg/dist-src/event-handler/validate-event-name.js
+function validateEventName(eventName, options = {}) {
+  if (typeof eventName !== "string") {
+    throw new TypeError("eventName must be of type string");
+  }
+  if (eventName === "*") {
+    throw new TypeError(
+      `Using the "*" event with the regular Webhooks.on() function is not supported. Please use the Webhooks.onAny() method instead`
+    );
+  }
+  if (eventName === "error") {
+    throw new TypeError(
+      `Using the "error" event with the regular Webhooks.on() function is not supported. Please use the Webhooks.onError() method instead`
+    );
+  }
+  if (options.onUnknownEventName === "ignore") {
+    return;
+  }
+  if (!emitterEventNames.includes(eventName)) {
+    if (options.onUnknownEventName !== "warn") {
+      throw new TypeError(
+        `"${eventName}" is not a known webhook name (https://developer.github.com/v3/activity/events/types/)`
+      );
+    } else {
+      (options.log || console).warn(
+        `"${eventName}" is not a known webhook name (https://developer.github.com/v3/activity/events/types/)`
+      );
+    }
+  }
+}
+
 // pkg/dist-src/event-handler/on.js
 function handleEventHandlers(state, webhookName, handler) {
   if (!state.hooks[webhookName]) {
@@ -51348,16 +51769,10 @@ function receiverOn(state, webhookNameOrNames, handler) {
     );
     return;
   }
-  if (["*", "error"].includes(webhookNameOrNames)) {
-    const webhookName = webhookNameOrNames === "*" ? "any" : webhookNameOrNames;
-    const message = `Using the "${webhookNameOrNames}" event with the regular Webhooks.on() function is not supported. Please use the Webhooks.on${webhookName.charAt(0).toUpperCase() + webhookName.slice(1)}() method instead`;
-    throw new Error(message);
-  }
-  if (!emitterEventNames.includes(webhookNameOrNames)) {
-    state.log.warn(
-      `"${webhookNameOrNames}" is not a known webhook name (https://developer.github.com/v3/activity/events/types/)`
-    );
-  }
+  validateEventName(webhookNameOrNames, {
+    onUnknownEventName: "warn",
+    log: state.log
+  });
   handleEventHandlers(state, webhookNameOrNames, handler);
 }
 function receiverOnAny(state, handler) {
@@ -51466,7 +51881,7 @@ function removeListener(state, webhookNameOrNames, handler) {
 function createEventHandler(options) {
   const state = {
     hooks: {},
-    log: createLogger(options && options.log)
+    log: dist_bundle_createLogger(options && options.log)
   };
   if (options && options.transform) {
     state.transform = options.transform;
@@ -51496,9 +51911,9 @@ async function verifyAndReceive(state, event) {
     const error = new Error(
       "[@octokit/webhooks] signature does not match event payload and secret"
     );
-    return state.eventHandler.receive(
-      Object.assign(error, { event, status: 400 })
-    );
+    error.event = event;
+    error.status = 400;
+    return state.eventHandler.receive(error);
   }
   let payload;
   try {
@@ -51515,160 +51930,246 @@ async function verifyAndReceive(state, event) {
   });
 }
 
-// pkg/dist-src/middleware/node/get-missing-headers.js
+// pkg/dist-src/normalize-trailing-slashes.js
+function normalizeTrailingSlashes(path) {
+  let i = path.length;
+  if (i === 0) {
+    return "/";
+  }
+  while (i > 0) {
+    if (path.charCodeAt(--i) !== 47) {
+      break;
+    }
+  }
+  if (i === -1) {
+    return "/";
+  }
+  return path.slice(0, i + 1);
+}
+
+// pkg/dist-src/middleware/create-middleware.js
+var isApplicationJsonRE = /^\s*(application\/json)\s*(?:;|$)/u;
 var WEBHOOK_HEADERS = [
   "x-github-event",
   "x-hub-signature-256",
   "x-github-delivery"
 ];
-function getMissingHeaders(request) {
-  return WEBHOOK_HEADERS.filter((header) => !(header in request.headers));
+function createMiddleware(options) {
+  const { handleResponse: handleResponse3, getRequestHeader: getRequestHeader3, getPayload: getPayload3 } = options;
+  return function middleware(webhooks, options2) {
+    const middlewarePath = normalizeTrailingSlashes(options2.path);
+    return async function octokitWebhooksMiddleware(request, response, next) {
+      let pathname;
+      try {
+        pathname = new URL(
+          normalizeTrailingSlashes(request.url),
+          "http://localhost"
+        ).pathname;
+      } catch (error) {
+        return handleResponse3(
+          JSON.stringify({
+            error: `Request URL could not be parsed: ${request.url}`
+          }),
+          422,
+          {
+            "content-type": "application/json"
+          },
+          response
+        );
+      }
+      if (pathname !== middlewarePath) {
+        next?.();
+        return handleResponse3(null);
+      } else if (request.method !== "POST") {
+        return handleResponse3(
+          JSON.stringify({
+            error: `Unknown route: ${request.method} ${pathname}`
+          }),
+          404,
+          {
+            "content-type": "application/json"
+          },
+          response
+        );
+      }
+      const contentType = getRequestHeader3(request, "content-type");
+      if (typeof contentType !== "string" || !isApplicationJsonRE.test(contentType)) {
+        return handleResponse3(
+          JSON.stringify({
+            error: `Unsupported "Content-Type" header value. Must be "application/json"`
+          }),
+          415,
+          {
+            "content-type": "application/json",
+            accept: "application/json"
+          },
+          response
+        );
+      }
+      const missingHeaders = WEBHOOK_HEADERS.filter((header) => {
+        return getRequestHeader3(request, header) == void 0;
+      }).join(", ");
+      if (missingHeaders) {
+        return handleResponse3(
+          JSON.stringify({
+            error: `Required headers missing: ${missingHeaders}`
+          }),
+          400,
+          {
+            "content-type": "application/json",
+            accept: "application/json"
+          },
+          response
+        );
+      }
+      const eventName = getRequestHeader3(
+        request,
+        "x-github-event"
+      );
+      const signature = getRequestHeader3(request, "x-hub-signature-256");
+      const id = getRequestHeader3(request, "x-github-delivery");
+      options2.log.debug(`${eventName} event received (id: ${id})`);
+      let didTimeout = false;
+      let timeout;
+      const timeoutPromise = new Promise((resolve) => {
+        timeout = setTimeout(() => {
+          didTimeout = true;
+          resolve(
+            handleResponse3(
+              "still processing\n",
+              202,
+              {
+                "Content-Type": "text/plain",
+                accept: "application/json"
+              },
+              response
+            )
+          );
+        }, options2.timeout);
+      });
+      const processWebhook = async () => {
+        try {
+          const payload = await getPayload3(request);
+          await webhooks.verifyAndReceive({
+            id,
+            name: eventName,
+            payload,
+            signature
+          });
+          clearTimeout(timeout);
+          if (didTimeout) return handleResponse3(null);
+          return handleResponse3(
+            "ok\n",
+            200,
+            {
+              "content-type": "text/plain",
+              accept: "application/json"
+            },
+            response
+          );
+        } catch (error) {
+          clearTimeout(timeout);
+          if (didTimeout) return handleResponse3(null);
+          const err = Array.from(error.errors)[0];
+          const errorMessage = err.message ? `${err.name}: ${err.message}` : "Error: An Unspecified error occurred";
+          const statusCode = typeof err.status !== "undefined" ? err.status : 500;
+          options2.log.error(error);
+          return handleResponse3(
+            JSON.stringify({
+              error: errorMessage
+            }),
+            statusCode,
+            {
+              "content-type": "application/json",
+              accept: "application/json"
+            },
+            response
+          );
+        }
+      };
+      return await Promise.race([timeoutPromise, processWebhook()]);
+    };
+  };
+}
+
+// pkg/dist-src/middleware/node/handle-response.js
+function handleResponse(body, status = 200, headers = {}, response) {
+  if (body === null) {
+    return false;
+  }
+  headers["content-length"] = body.length.toString();
+  response.writeHead(status, headers).end(body);
+  return true;
+}
+
+// pkg/dist-src/middleware/node/get-request-header.js
+function getRequestHeader(request, key) {
+  return request.headers[key];
+}
+
+// pkg/dist-src/concat-uint8array.js
+function concatUint8Array(data) {
+  if (data.length === 0) {
+    return new Uint8Array(0);
+  }
+  let totalLength = 0;
+  for (let i = 0; i < data.length; i++) {
+    totalLength += data[i].length;
+  }
+  if (totalLength === 0) {
+    return new Uint8Array(0);
+  }
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (let i = 0; i < data.length; i++) {
+    result.set(data[i], offset);
+    offset += data[i].length;
+  }
+  return result;
 }
 
 // pkg/dist-src/middleware/node/get-payload.js
-function getPayload(request) {
-  if (typeof request.body === "object" && "rawBody" in request && request.rawBody instanceof Buffer) {
-    return Promise.resolve(request.rawBody.toString("utf8"));
+var textDecoder = new TextDecoder("utf-8", { fatal: false });
+var decode = textDecoder.decode.bind(textDecoder);
+async function getPayload(request) {
+  if (typeof request.body === "object" && "rawBody" in request && request.rawBody instanceof Uint8Array) {
+    return decode(request.rawBody);
   } else if (typeof request.body === "string") {
-    return Promise.resolve(request.body);
+    return request.body;
   }
+  const payload = await getPayloadFromRequestStream(request);
+  return decode(payload);
+}
+function getPayloadFromRequestStream(request) {
   return new Promise((resolve, reject) => {
     let data = [];
     request.on(
       "error",
       (error) => reject(new AggregateError([error], error.message))
     );
-    request.on("data", (chunk) => data.push(chunk));
-    request.on(
-      "end",
-      () => (
-        // setImmediate improves the throughput by reducing the pressure from
-        // the event loop
-        setImmediate(
-          resolve,
-          data.length === 1 ? data[0].toString("utf8") : Buffer.concat(data).toString("utf8")
-        )
-      )
-    );
+    request.on("data", data.push.bind(data));
+    request.on("end", () => {
+      const result = concatUint8Array(data);
+      queueMicrotask(() => resolve(result));
+    });
   });
-}
-
-// pkg/dist-src/middleware/node/on-unhandled-request-default.js
-function onUnhandledRequestDefault(request, response) {
-  response.writeHead(404, {
-    "content-type": "application/json"
-  });
-  response.end(
-    JSON.stringify({
-      error: `Unknown route: ${request.method} ${request.url}`
-    })
-  );
-}
-
-// pkg/dist-src/middleware/node/middleware.js
-async function middleware(webhooks, options, request, response, next) {
-  let pathname;
-  try {
-    pathname = new URL(request.url, "http://localhost").pathname;
-  } catch (error) {
-    response.writeHead(422, {
-      "content-type": "application/json"
-    });
-    response.end(
-      JSON.stringify({
-        error: `Request URL could not be parsed: ${request.url}`
-      })
-    );
-    return true;
-  }
-  if (pathname !== options.path) {
-    next?.();
-    return false;
-  } else if (request.method !== "POST") {
-    onUnhandledRequestDefault(request, response);
-    return true;
-  }
-  if (!request.headers["content-type"] || !request.headers["content-type"].startsWith("application/json")) {
-    response.writeHead(415, {
-      "content-type": "application/json",
-      accept: "application/json"
-    });
-    response.end(
-      JSON.stringify({
-        error: `Unsupported "Content-Type" header value. Must be "application/json"`
-      })
-    );
-    return true;
-  }
-  const missingHeaders = getMissingHeaders(request).join(", ");
-  if (missingHeaders) {
-    response.writeHead(400, {
-      "content-type": "application/json"
-    });
-    response.end(
-      JSON.stringify({
-        error: `Required headers missing: ${missingHeaders}`
-      })
-    );
-    return true;
-  }
-  const eventName = request.headers["x-github-event"];
-  const signatureSHA256 = request.headers["x-hub-signature-256"];
-  const id = request.headers["x-github-delivery"];
-  options.log.debug(`${eventName} event received (id: ${id})`);
-  let didTimeout = false;
-  const timeout = setTimeout(() => {
-    didTimeout = true;
-    response.statusCode = 202;
-    response.end("still processing\n");
-  }, 9e3).unref();
-  try {
-    const payload = await getPayload(request);
-    await webhooks.verifyAndReceive({
-      id,
-      name: eventName,
-      payload,
-      signature: signatureSHA256
-    });
-    clearTimeout(timeout);
-    if (didTimeout) return true;
-    response.end("ok\n");
-    return true;
-  } catch (error) {
-    clearTimeout(timeout);
-    if (didTimeout) return true;
-    const err = Array.from(error.errors)[0];
-    const errorMessage = err.message ? `${err.name}: ${err.message}` : "Error: An Unspecified error occurred";
-    response.statusCode = typeof err.status !== "undefined" ? err.status : 500;
-    options.log.error(error);
-    response.end(
-      JSON.stringify({
-        error: errorMessage
-      })
-    );
-    return true;
-  }
 }
 
 // pkg/dist-src/middleware/node/index.js
 function dist_bundle_createNodeMiddleware(webhooks, {
   path = "/api/github/webhooks",
-  log = createLogger()
+  log = dist_bundle_createLogger(),
+  timeout = 9e3
 } = {}) {
-  return middleware.bind(null, webhooks, {
+  return createMiddleware({
+    handleResponse,
+    getRequestHeader,
+    getPayload
+  })(webhooks, {
     path,
-    log
+    log,
+    timeout
   });
-}
-
-// pkg/dist-src/middleware/web/get-missing-headers.js
-var WEBHOOK_HEADERS2 = (/* unused pure expression or super */ null && ([
-  "x-github-event",
-  "x-hub-signature-256",
-  "x-github-delivery"
-]));
-function getMissingHeaders2(request) {
-  return WEBHOOK_HEADERS2.filter((header) => !request.headers.has(header));
 }
 
 // pkg/dist-src/middleware/web/get-payload.js
@@ -51676,128 +52177,36 @@ function getPayload2(request) {
   return request.text();
 }
 
-// pkg/dist-src/middleware/web/on-unhandled-request-default.js
-function onUnhandledRequestDefault2(request) {
-  return new Response(
-    JSON.stringify({
-      error: `Unknown route: ${request.method} ${request.url}`
-    }),
-    {
-      status: 404,
-      headers: {
-        "content-type": "application/json"
-      }
-    }
-  );
+// pkg/dist-src/middleware/web/get-request-header.js
+function getRequestHeader2(request, key) {
+  return request.headers.get(key);
 }
 
-// pkg/dist-src/middleware/web/middleware.js
-async function middleware2(webhooks, options, request) {
-  let pathname;
-  try {
-    pathname = new URL(request.url, "http://localhost").pathname;
-  } catch (error) {
-    return new Response(
-      JSON.stringify({
-        error: `Request URL could not be parsed: ${request.url}`
-      }),
-      {
-        status: 422,
-        headers: {
-          "content-type": "application/json"
-        }
-      }
-    );
+// pkg/dist-src/middleware/web/handle-response.js
+function handleResponse2(body, status = 200, headers = {}) {
+  if (body !== null) {
+    headers["content-length"] = body.length.toString();
   }
-  if (pathname !== options.path || request.method !== "POST") {
-    return onUnhandledRequestDefault2(request);
-  }
-  if (typeof request.headers.get("content-type") !== "string" || !request.headers.get("content-type").startsWith("application/json")) {
-    return new Response(
-      JSON.stringify({
-        error: `Unsupported "Content-Type" header value. Must be "application/json"`
-      }),
-      {
-        status: 415,
-        headers: {
-          "content-type": "application/json"
-        }
-      }
-    );
-  }
-  const missingHeaders = getMissingHeaders2(request).join(", ");
-  if (missingHeaders) {
-    return new Response(
-      JSON.stringify({
-        error: `Required headers missing: ${missingHeaders}`
-      }),
-      {
-        status: 422,
-        headers: {
-          "content-type": "application/json"
-        }
-      }
-    );
-  }
-  const eventName = request.headers.get("x-github-event");
-  const signatureSHA256 = request.headers.get("x-hub-signature-256");
-  const id = request.headers.get("x-github-delivery");
-  options.log.debug(`${eventName} event received (id: ${id})`);
-  let didTimeout = false;
-  let timeout;
-  const timeoutPromise = new Promise((resolve) => {
-    timeout = setTimeout(() => {
-      didTimeout = true;
-      resolve(
-        new Response("still processing\n", {
-          status: 202,
-          headers: { "Content-Type": "text/plain" }
-        })
-      );
-    }, 9e3);
+  return new Response(body, {
+    status,
+    headers
   });
-  const processWebhook = async () => {
-    try {
-      const payload = await getPayload2(request);
-      await webhooks.verifyAndReceive({
-        id,
-        name: eventName,
-        payload,
-        signature: signatureSHA256
-      });
-      clearTimeout(timeout);
-      if (didTimeout) return new Response(null);
-      return new Response("ok\n");
-    } catch (error) {
-      clearTimeout(timeout);
-      if (didTimeout) return new Response(null);
-      const err = Array.from(error.errors)[0];
-      const errorMessage = err.message ? `${err.name}: ${err.message}` : "Error: An Unspecified error occurred";
-      options.log.error(error);
-      return new Response(
-        JSON.stringify({
-          error: errorMessage
-        }),
-        {
-          status: typeof err.status !== "undefined" ? err.status : 500,
-          headers: {
-            "content-type": "application/json"
-          }
-        }
-      );
-    }
-  };
-  return await Promise.race([timeoutPromise, processWebhook()]);
 }
 
 // pkg/dist-src/middleware/web/index.js
 function createWebMiddleware(webhooks, {
   path = "/api/github/webhooks",
-  log = createLogger()
+  log = dist_bundle_createLogger(),
+  timeout = 9e3
 } = {}) {
-  return middleware2.bind(null, webhooks, {
+  return createMiddleware({
+    handleResponse: handleResponse2,
+    getRequestHeader: getRequestHeader2,
+    getPayload: getPayload2
+  })(webhooks, {
     path,
-    log
+    log,
+    timeout
   });
 }
 
@@ -51820,7 +52229,7 @@ var Webhooks = class {
       secret: options.secret,
       additionalSecrets: options.additionalSecrets,
       hooks: {},
-      log: createLogger(options.log)
+      log: dist_bundle_createLogger(options.log)
     };
     this.sign = sign.bind(null, options.secret);
     this.verify = verify.bind(null, options.secret);
@@ -51846,14 +52255,16 @@ function dist_bundle_normalizePaginatedListResponse(response) {
       data: []
     };
   }
-  const responseNeedsNormalization = "total_count" in response.data && !("url" in response.data);
+  const responseNeedsNormalization = ("total_count" in response.data || "total_commits" in response.data) && !("url" in response.data);
   if (!responseNeedsNormalization) return response;
   const incompleteResults = response.data.incomplete_results;
   const repositorySelection = response.data.repository_selection;
   const totalCount = response.data.total_count;
+  const totalCommits = response.data.total_commits;
   delete response.data.incomplete_results;
   delete response.data.repository_selection;
   delete response.data.total_count;
+  delete response.data.total_commits;
   const namespaceKey = Object.keys(response.data)[0];
   const data = response.data[namespaceKey];
   response.data = data;
@@ -51864,6 +52275,7 @@ function dist_bundle_normalizePaginatedListResponse(response) {
     response.data.repository_selection = repositorySelection;
   }
   response.data.total_count = totalCount;
+  response.data.total_commits = totalCommits;
   return response;
 }
 
@@ -51884,6 +52296,16 @@ function dist_bundle_iterator(octokit, route, parameters) {
           url = ((normalizedResponse.headers.link || "").match(
             /<([^<>]+)>;\s*rel="next"/
           ) || [])[1];
+          if (!url && "total_commits" in normalizedResponse.data) {
+            const parsedUrl = new URL(normalizedResponse.url);
+            const params = parsedUrl.searchParams;
+            const page = parseInt(params.get("page") || "1", 10);
+            const per_page = parseInt(params.get("per_page") || "250", 10);
+            if (page * per_page < normalizedResponse.data.total_commits) {
+              params.set("page", String(page + 1));
+              url = parsedUrl.toString();
+            }
+          }
           return { value: normalizedResponse };
         } catch (error) {
           if (error.status !== 409) throw error;
@@ -51950,7 +52372,9 @@ var dist_bundle_paginatingEndpoints = (/* unused pure expression or super */ nul
   "GET /enterprises/{enterprise}/code-security/configurations",
   "GET /enterprises/{enterprise}/code-security/configurations/{configuration_id}/repositories",
   "GET /enterprises/{enterprise}/dependabot/alerts",
-  "GET /enterprises/{enterprise}/secret-scanning/alerts",
+  "GET /enterprises/{enterprise}/teams",
+  "GET /enterprises/{enterprise}/teams/{enterprise-team}/memberships",
+  "GET /enterprises/{enterprise}/teams/{enterprise-team}/organizations",
   "GET /events",
   "GET /gists",
   "GET /gists/public",
@@ -51968,9 +52392,11 @@ var dist_bundle_paginatingEndpoints = (/* unused pure expression or super */ nul
   "GET /networks/{owner}/{repo}/events",
   "GET /notifications",
   "GET /organizations",
+  "GET /organizations/{org}/dependabot/repository-access",
   "GET /orgs/{org}/actions/cache/usage-by-repository",
   "GET /orgs/{org}/actions/hosted-runners",
   "GET /orgs/{org}/actions/permissions/repositories",
+  "GET /orgs/{org}/actions/permissions/self-hosted-runners/repositories",
   "GET /orgs/{org}/actions/runner-groups",
   "GET /orgs/{org}/actions/runner-groups/{runner_group_id}/hosted-runners",
   "GET /orgs/{org}/actions/runner-groups/{runner_group_id}/repositories",
@@ -51980,6 +52406,7 @@ var dist_bundle_paginatingEndpoints = (/* unused pure expression or super */ nul
   "GET /orgs/{org}/actions/secrets/{secret_name}/repositories",
   "GET /orgs/{org}/actions/variables",
   "GET /orgs/{org}/actions/variables/{name}/repositories",
+  "GET /orgs/{org}/attestations/repositories",
   "GET /orgs/{org}/attestations/{subject_digest}",
   "GET /orgs/{org}/blocks",
   "GET /orgs/{org}/campaigns",
@@ -52020,6 +52447,9 @@ var dist_bundle_paginatingEndpoints = (/* unused pure expression or super */ nul
   "GET /orgs/{org}/personal-access-tokens/{pat_id}/repositories",
   "GET /orgs/{org}/private-registries",
   "GET /orgs/{org}/projects",
+  "GET /orgs/{org}/projectsV2",
+  "GET /orgs/{org}/projectsV2/{project_number}/fields",
+  "GET /orgs/{org}/projectsV2/{project_number}/items",
   "GET /orgs/{org}/properties/values",
   "GET /orgs/{org}/public_members",
   "GET /orgs/{org}/repos",
@@ -52028,6 +52458,7 @@ var dist_bundle_paginatingEndpoints = (/* unused pure expression or super */ nul
   "GET /orgs/{org}/rulesets/{ruleset_id}/history",
   "GET /orgs/{org}/secret-scanning/alerts",
   "GET /orgs/{org}/security-advisories",
+  "GET /orgs/{org}/settings/immutable-releases/repositories",
   "GET /orgs/{org}/settings/network-configurations",
   "GET /orgs/{org}/team/{team_slug}/copilot/metrics",
   "GET /orgs/{org}/teams",
@@ -52040,9 +52471,7 @@ var dist_bundle_paginatingEndpoints = (/* unused pure expression or super */ nul
   "GET /orgs/{org}/teams/{team_slug}/projects",
   "GET /orgs/{org}/teams/{team_slug}/repos",
   "GET /orgs/{org}/teams/{team_slug}/teams",
-  "GET /projects/columns/{column_id}/cards",
   "GET /projects/{project_id}/collaborators",
-  "GET /projects/{project_id}/columns",
   "GET /repos/{owner}/{repo}/actions/artifacts",
   "GET /repos/{owner}/{repo}/actions/caches",
   "GET /repos/{owner}/{repo}/actions/organization-secrets",
@@ -52078,6 +52507,8 @@ var dist_bundle_paginatingEndpoints = (/* unused pure expression or super */ nul
   "GET /repos/{owner}/{repo}/commits/{ref}/check-suites",
   "GET /repos/{owner}/{repo}/commits/{ref}/status",
   "GET /repos/{owner}/{repo}/commits/{ref}/statuses",
+  "GET /repos/{owner}/{repo}/compare/{basehead}",
+  "GET /repos/{owner}/{repo}/compare/{base}...{head}",
   "GET /repos/{owner}/{repo}/contributors",
   "GET /repos/{owner}/{repo}/dependabot/alerts",
   "GET /repos/{owner}/{repo}/dependabot/secrets",
@@ -52098,6 +52529,8 @@ var dist_bundle_paginatingEndpoints = (/* unused pure expression or super */ nul
   "GET /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions",
   "GET /repos/{owner}/{repo}/issues/events",
   "GET /repos/{owner}/{repo}/issues/{issue_number}/comments",
+  "GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by",
+  "GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocking",
   "GET /repos/{owner}/{repo}/issues/{issue_number}/events",
   "GET /repos/{owner}/{repo}/issues/{issue_number}/labels",
   "GET /repos/{owner}/{repo}/issues/{issue_number}/reactions",
@@ -52190,6 +52623,9 @@ var dist_bundle_paginatingEndpoints = (/* unused pure expression or super */ nul
   "GET /users/{username}/orgs",
   "GET /users/{username}/packages",
   "GET /users/{username}/projects",
+  "GET /users/{username}/projectsV2",
+  "GET /users/{username}/projectsV2/{project_number}/fields",
+  "GET /users/{username}/projectsV2/{project_number}/items",
   "GET /users/{username}/received_events",
   "GET /users/{username}/received_events/public",
   "GET /users/{username}/repos",
@@ -52226,7 +52662,7 @@ dist_bundle_paginateRest.VERSION = _octokit_plugin_paginate_rest_dist_bundle_VER
 
 
 // pkg/dist-src/version.js
-var app_dist_node_VERSION = "15.1.6";
+var app_dist_node_VERSION = "16.1.2";
 
 // pkg/dist-src/webhooks.js
 
@@ -52437,14 +52873,14 @@ function dist_node_createNodeMiddleware(app, options = {}) {
   const oauthMiddleware = createNodeMiddleware(app.oauth, {
     pathPrefix: optionsWithDefaults.pathPrefix + "/oauth"
   });
-  return dist_node_middleware.bind(
+  return middleware.bind(
     null,
     optionsWithDefaults.pathPrefix,
     webhooksMiddleware,
     oauthMiddleware
   );
 }
-async function dist_node_middleware(pathPrefix, webhooksMiddleware, oauthMiddleware, request, response, next) {
+async function middleware(pathPrefix, webhooksMiddleware, oauthMiddleware, request, response, next) {
   const { pathname } = new URL(request.url, "http://localhost");
   if (pathname.startsWith(`${pathPrefix}/`)) {
     if (pathname === `${pathPrefix}/webhooks`) {
@@ -52608,6 +53044,7 @@ function onSecondaryRateLimit(retryAfter, options, octokit) {
 var dist_bundle_App = App.defaults({ Octokit: dist_bundle_Octokit });
 var dist_bundle_OAuthApp = OAuthApp.defaults({ Octokit: dist_bundle_Octokit });
 
+/* v8 ignore next no need to test internals of the throttle plugin -- @preserve */
 
 
 /***/ }),
@@ -52615,7 +53052,7 @@ var dist_bundle_OAuthApp = OAuthApp.defaults({ Octokit: dist_bundle_Octokit });
 /***/ 56:
 /***/ ((module) => {
 
-module.exports = /*#__PURE__*/JSON.parse('{"name":"dotenv","version":"16.5.0","description":"Loads environment variables from .env file","main":"lib/main.js","types":"lib/main.d.ts","exports":{".":{"types":"./lib/main.d.ts","require":"./lib/main.js","default":"./lib/main.js"},"./config":"./config.js","./config.js":"./config.js","./lib/env-options":"./lib/env-options.js","./lib/env-options.js":"./lib/env-options.js","./lib/cli-options":"./lib/cli-options.js","./lib/cli-options.js":"./lib/cli-options.js","./package.json":"./package.json"},"scripts":{"dts-check":"tsc --project tests/types/tsconfig.json","lint":"standard","pretest":"npm run lint && npm run dts-check","test":"tap run --allow-empty-coverage --disable-coverage --timeout=60000","test:coverage":"tap run --show-full-coverage --timeout=60000 --coverage-report=lcov","prerelease":"npm test","release":"standard-version"},"repository":{"type":"git","url":"git://github.com/motdotla/dotenv.git"},"homepage":"https://github.com/motdotla/dotenv#readme","funding":"https://dotenvx.com","keywords":["dotenv","env",".env","environment","variables","config","settings"],"readmeFilename":"README.md","license":"BSD-2-Clause","devDependencies":{"@types/node":"^18.11.3","decache":"^4.6.2","sinon":"^14.0.1","standard":"^17.0.0","standard-version":"^9.5.0","tap":"^19.2.0","typescript":"^4.8.4"},"engines":{"node":">=12"},"browser":{"fs":false}}');
+module.exports = /*#__PURE__*/JSON.parse('{"name":"dotenv","version":"17.2.3","description":"Loads environment variables from .env file","main":"lib/main.js","types":"lib/main.d.ts","exports":{".":{"types":"./lib/main.d.ts","require":"./lib/main.js","default":"./lib/main.js"},"./config":"./config.js","./config.js":"./config.js","./lib/env-options":"./lib/env-options.js","./lib/env-options.js":"./lib/env-options.js","./lib/cli-options":"./lib/cli-options.js","./lib/cli-options.js":"./lib/cli-options.js","./package.json":"./package.json"},"scripts":{"dts-check":"tsc --project tests/types/tsconfig.json","lint":"standard","pretest":"npm run lint && npm run dts-check","test":"tap run tests/**/*.js --allow-empty-coverage --disable-coverage --timeout=60000","test:coverage":"tap run tests/**/*.js --show-full-coverage --timeout=60000 --coverage-report=text --coverage-report=lcov","prerelease":"npm test","release":"standard-version"},"repository":{"type":"git","url":"git://github.com/motdotla/dotenv.git"},"homepage":"https://github.com/motdotla/dotenv#readme","funding":"https://dotenvx.com","keywords":["dotenv","env",".env","environment","variables","config","settings"],"readmeFilename":"README.md","license":"BSD-2-Clause","devDependencies":{"@types/node":"^18.11.3","decache":"^4.6.2","sinon":"^14.0.1","standard":"^17.0.0","standard-version":"^9.5.0","tap":"^19.2.0","typescript":"^4.8.4"},"engines":{"node":">=12"},"browser":{"fs":false}}');
 
 /***/ }),
 
