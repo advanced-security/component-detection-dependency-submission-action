@@ -26,8 +26,7 @@ jobs:
 ```
 
 Additional `Experimental` and `DefaultOff`  detectors:
-
-For a list of experimental and default-off detectors that require explicit enablement, see the [Detectors README](https://github.com/microsoft/component-detection/blob/main/docs/detectors/README.md). See [enable-default-off.md](https://github.com/microsoft/component-detection/blob/main/docs/enable-default-off.md) for more details.
+- For a list of experimental and default-off detectors that require explicit enablement, see the [Detectors README](https://github.com/microsoft/component-detection/blob/main/docs/detectors/README.md). See [enable-default-off.md](https://github.com/microsoft/component-detection/blob/main/docs/enable-default-off.md) for more details.
 
 ```yaml
 name: Component Detection
@@ -46,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Component detection
-        uses: advanced-security/component-detection-dependency-submission-action@v0.0.2
+        uses: advanced-security/component-detection-dependency-submission-action@v0.1.1
         with:
           # Experimental detectors: Poetry, UvLock, NpmLockfile3, Ivy
           # Default-off detectors: ConanLock, CondaLock, Dockerfile, Pip, SimplePip, Spdx22, SwiftResolved
