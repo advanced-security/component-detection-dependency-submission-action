@@ -48,8 +48,8 @@ jobs:
         uses: advanced-security/component-detection-dependency-submission-action@v0.1.1
         with:
           # Experimental detectors: Poetry, UvLock, NpmLockfile3, Ivy
-          # Default-off detectors: ConanLock, CondaLock, Dockerfile, Pip, SimplePip, Spdx22, SwiftResolved
-          detectorArgs: Poetry=EnableIfDefaultOff,UvLock=EnableIfDefaultOff,NpmLockfile3=EnableIfDefaultOff,Ivy=EnableIfDefaultOff,ConanLock=EnableIfDefaultOff,CondaLock=EnableIfDefaultOff,Dockerfile=EnableIfDefaultOff,Pip=EnableIfDefaultOff,SimplePip=EnableIfDefaultOff,Spdx22=EnableIfDefaultOff,SwiftResolved=EnableIfDefaultOff
+          # Default-off detectors: ConanLock, CondaLock, Dockerfile, Pip, SimplePip, Spdx22, Swift
+          detectorArgs: Poetry=EnableIfDefaultOff,UvLock=EnableIfDefaultOff,NpmLockfile3=EnableIfDefaultOff,Ivy=EnableIfDefaultOff,ConanLock=EnableIfDefaultOff,CondaLock=EnableIfDefaultOff,Dockerfile=EnableIfDefaultOff,Pip=EnableIfDefaultOff,SimplePip=EnableIfDefaultOff,Spdx22=EnableIfDefaultOff,Swift=EnableIfDefaultOff
 ```
 
 ### Configuration options
