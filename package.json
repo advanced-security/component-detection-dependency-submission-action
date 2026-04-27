@@ -26,25 +26,25 @@
   },
   "homepage": "https://github.com/advanced-security/component-detection-dependency-submission-action#readme",
   "dependencies": {
-    "@actions/core": "^3.0.0",
-    "@actions/github": "^9.0.0",
+    "@actions/core": "^3.0.1",
+    "@actions/github": "^9.1.1",
     "@github/dependency-submission-toolkit": "^2.0.5",
     "cross-fetch": "^4.1.0",
-    "dotenv": "^17.3.1",
+    "dotenv": "^17.4.2",
     "fs": "^0.0.1-security",
     "octokit": "^5.0.5",
-    "tar": "^7.5.11",
-    "yaml": "^2.8.2"
+    "tar": "^7.5.13",
+    "yaml": "^2.8.3"
   },
   "devDependencies": {
-    "@babel/preset-env": "^7.29.0",
+    "@babel/preset-env": "^7.29.2",
     "@babel/preset-typescript": "^7.28.5",
     "@eslint/js": "^10.0.1",
     "@types/jest": "^30.0.0",
     "@vercel/ncc": "^0.38.4",
-    "eslint": "^10.0.3",
-    "jest": "^30.2.0",
+    "eslint": "^10.2.1",
+    "jest": "^30.3.0",
     "jest-transform-stub": "^2.0.0",
-    "ts-jest": "^29.4.6"
+    "ts-jest": "^29.4.9"
   }
 }
