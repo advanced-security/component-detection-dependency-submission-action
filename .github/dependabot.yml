@@ -2,6 +2,8 @@ version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
+    cooldown:
+      default-days: 3
     schedule:
       interval: weekly
     groups: 
@@ -10,6 +12,8 @@ updates:
           - "*"
   - package-ecosystem: npm
     directory: /
+    cooldown:
+      default-days: 3
     schedule:
       interval: weekly
     groups: 
