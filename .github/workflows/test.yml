@@ -16,7 +16,6 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
     steps:
-    # TODO: Pin this third-party action to a full commit SHA after human review.
     - uses: actions/checkout@v6
     - name: Unit test
       run: |
