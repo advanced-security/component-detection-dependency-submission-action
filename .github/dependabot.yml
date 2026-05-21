@@ -6,6 +6,8 @@ updates:
       default-days: 3
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
     groups: 
       actions-dependencies:
         patterns:
@@ -16,6 +18,8 @@ updates:
       default-days: 3
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
     groups: 
       npm-dependencies:
         patterns:
