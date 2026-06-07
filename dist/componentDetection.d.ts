@@ -12,6 +12,7 @@ export default class ComponentDetection {
     private static getDependencyScope;
     static makePackageUrl(packageUrlJson: any): string;
     private static getLatestReleaseURL;
+    private static fetchWithProxy;
     /**
      * Normalizes the keys of a DependencyGraphs object to be relative paths from the resolved filePath input.
      * @param dependencyGraphs The DependencyGraphs object to normalize.

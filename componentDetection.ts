@@ -16,7 +16,16 @@ import * as exec from '@actions/exec';
 import dotenv from 'dotenv'
 import { unmockedModulePathPatterns } from './jest.config'
 import path from 'path';
+import { 
+  EnvHttpProxyAgent, 
+  fetch as undiciFetch, 
+  type RequestInit as UndiciRequestInit, 
+  type Response as UndiciResponse 
+} from 'undici';
+
 dotenv.config();
+
+const proxyAgent = new EnvHttpProxyAgent();
 
 export default class ComponentDetection {
   public static componentDetectionPath = process.platform === "win32" ? './component-detection.exe' : './component-detection';
@@ -33,7 +42,7 @@ export default class ComponentDetection {
     try {
       core.debug(`Downloading latest release for ${process.platform}`);
       const downloadURL = await this.getLatestReleaseURL();
-      const blob = await (await fetch(new URL(downloadURL))).blob();
+      const blob = await (await this.fetchWithProxy(new URL(downloadURL))).blob();
       const arrayBuffer = await blob.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
 
@@ -240,7 +249,7 @@ export default class ComponentDetection {
     if (ghesMode) {
       githubToken = "";
     }
-    const octokit = new Octokit({ auth: githubToken, baseUrl: githubAPIURL, request: { fetch: fetch}, log: {
+    const octokit = new Octokit({ auth: githubToken, baseUrl: githubAPIURL, request: { fetch: this.fetchWithProxy}, log: {
       debug: core.debug,
       info: core.info,
       warn: core.warning,
@@ -269,6 +278,13 @@ export default class ComponentDetection {
       core.debug(error.stack);
       throw new Error("Failed to download latest release");
     }
+  }
+
+  private static async fetchWithProxy(url: string | URL, options?: UndiciRequestInit) : Promise<UndiciResponse> {
+    return undiciFetch(url, {
+      ...options,
+      dispatcher: proxyAgent
+    });
   }
 
   /**
