@@ -14,7 +14,6 @@ import tar from 'tar'
 import fs from 'fs'
 import * as exec from '@actions/exec';
 import dotenv from 'dotenv'
-import { unmockedModulePathPatterns } from './jest.config'
 import path from 'path';
 import { 
   EnvHttpProxyAgent, 
