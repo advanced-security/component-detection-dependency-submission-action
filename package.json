@@ -29,7 +29,6 @@
     "@actions/core": "^3.0.0",
     "@actions/github": "^9.0.0",
     "@github/dependency-submission-toolkit": "^2.0.5",
-    "cross-fetch": "^4.1.0",
     "dotenv": "^17.3.1",
     "fs": "^0.0.1-security",
     "octokit": "^5.0.5",

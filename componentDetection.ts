@@ -1,6 +1,6 @@
 import * as github from '@actions/github'
 import * as core from '@actions/core'
-import { Octokit, App } from "octokit"
+import { Octokit } from "octokit"
 import {
   PackageCache,
   BuildTarget,
@@ -9,7 +9,6 @@ import {
   Manifest,
   submitSnapshot,
 } from '@github/dependency-submission-toolkit'
-import fetch from 'cross-fetch'
 import tar from 'tar'
 import fs from 'fs'
 import * as exec from '@actions/exec';
