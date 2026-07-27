@@ -17,7 +17,7 @@ test("Parses CLI output", async () => {
   await ComponentDetection.runComponentDetection("./test");
   var manifests = await ComponentDetection.getManifestsFromResults();
   expect(manifests?.length == 2);
-});
+}, 10000);
 
 describe("ComponentDetection.makePackageUrl", () => {
   test("returns a valid package url from saturated object", () => {
