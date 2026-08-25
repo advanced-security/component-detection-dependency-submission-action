@@ -41,7 +41,7 @@ export default class ComponentDetection {
       const downloadURL = await this.getLatestReleaseURL();
       const blob = await (await this.fetchWithProxy(new URL(downloadURL))).blob();
       const arrayBuffer = await blob.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
+      const buffer = new Uint8Array(arrayBuffer);
 
       // Write the blob to a file
       core.debug(`Writing binary to file ${this.componentDetectionPath}`);

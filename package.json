@@ -49,6 +49,6 @@
     "eslint": "^10.8.0",
     "jest": "^30.4.2",
     "jest-transform-stub": "^2.0.0",
-    "ts-jest": "^29.4.12"
+    "typescript": "^5.9.3"
   }
 }
