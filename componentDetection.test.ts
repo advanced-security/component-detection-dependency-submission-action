@@ -10,14 +10,14 @@ test("Runs CLI", async () => {
   await ComponentDetection.downloadLatestRelease();
   await ComponentDetection.runComponentDetection("./test");
   expect(fs.existsSync(ComponentDetection.outputPath));
-}, 10000);
+});
 
 test("Parses CLI output", async () => {
   await ComponentDetection.downloadLatestRelease();
   await ComponentDetection.runComponentDetection("./test");
   var manifests = await ComponentDetection.getManifestsFromResults();
   expect(manifests?.length == 2);
-}, 10000);
+});
 
 describe("ComponentDetection.makePackageUrl", () => {
   test("returns a valid package url from saturated object", () => {
@@ -281,4 +281,4 @@ test('full action scan creates manifests with correct names and file source loca
     expect(manifest.name).toBe(expectedName);
     expect(manifest.file?.source_location).toBe(expectedName);
   }
-}, 15000);
+});
