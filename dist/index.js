@@ -120081,25 +120081,17 @@ const fs = __nccwpck_require__(79896)
 const path = __nccwpck_require__(16928)
 const os = __nccwpck_require__(70857)
 const crypto = __nccwpck_require__(76982)
-const packageJson = __nccwpck_require__(80056)
-
-const version = packageJson.version
 
 // Array of tips to display randomly
 const TIPS = [
-  '🔐 encrypt with Dotenvx: https://dotenvx.com',
-  '🔐 prevent committing .env to code: https://dotenvx.com/precommit',
-  '🔐 prevent building .env in docker: https://dotenvx.com/prebuild',
-  '🤖 agentic secret storage: https://dotenvx.com/as2',
-  '⚡️ secrets for agents: https://dotenvx.com/as2',
-  '🛡️ auth for agents: https://vestauth.com',
-  '🛠️  run anywhere with `dotenvx run -- yourcommand`',
-  '⚙️  specify custom .env file path with { path: \'/custom/path/.env\' }',
-  '⚙️  enable debug logging with { debug: true }',
-  '⚙️  override existing env vars with { override: true }',
-  '⚙️  suppress all logs with { quiet: true }',
-  '⚙️  write to custom object with { processEnv: myObject }',
-  '⚙️  load multiple .env files with { path: [\'.env.local\', \'.env\'] }'
+  '◈ encrypted .env [www.dotenvx.com]',
+  '◈ secrets for agents [www.dotenvx.com]',
+  '⌁ auth for agents [www.vestauth.com]',
+  '⌘ custom filepath { path: \'/custom/path/.env\' }',
+  '⌘ enable debugging { debug: true }',
+  '⌘ override existing { override: true }',
+  '⌘ suppress logs { quiet: true }',
+  '⌘ multiple files { path: [\'.env.local\', \'.env\'] }'
 ]
 
 // Get a random tip from the tips array
@@ -120207,15 +120199,15 @@ function _parseVault (options) {
 }
 
 function _warn (message) {
-  console.error(`[dotenv@${version}][WARN] ${message}`)
+  console.error(`⚠ ${message}`)
 }
 
 function _debug (message) {
-  console.log(`[dotenv@${version}][DEBUG] ${message}`)
+  console.log(`┆ ${message}`)
 }
 
 function _log (message) {
-  console.log(`[dotenv@${version}] ${message}`)
+  console.log(`◇ ${message}`)
 }
 
 function _dotenvKey (options) {
@@ -120309,7 +120301,7 @@ function _configVault (options) {
   const quiet = parseBoolean(process.env.DOTENV_CONFIG_QUIET || (options && options.quiet))
 
   if (debug || !quiet) {
-    _log('Loading env from encrypted .env.vault')
+    _log('loading env from encrypted .env.vault')
   }
 
   const parsed = DotenvModule._parseVault(options)
@@ -120338,7 +120330,7 @@ function configDotenv (options) {
     encoding = options.encoding
   } else {
     if (debug) {
-      _debug('No encoding is specified. UTF-8 is used by default')
+      _debug('no encoding is specified (UTF-8 is used by default)')
     }
   }
 
@@ -120366,7 +120358,7 @@ function configDotenv (options) {
       DotenvModule.populate(parsedAll, parsed, options)
     } catch (e) {
       if (debug) {
-        _debug(`Failed to load ${path} ${e.message}`)
+        _debug(`failed to load ${path} ${e.message}`)
       }
       lastError = e
     }
@@ -120387,13 +120379,13 @@ function configDotenv (options) {
         shortPaths.push(relative)
       } catch (e) {
         if (debug) {
-          _debug(`Failed to load ${filePath} ${e.message}`)
+          _debug(`failed to load ${filePath} ${e.message}`)
         }
         lastError = e
       }
     }
 
-    _log(`injecting env (${keysCount}) from ${shortPaths.join(',')} ${dim(`-- tip: ${_getRandomTip()}`)}`)
+    _log(`injected env (${keysCount}) from ${shortPaths.join(',')} ${dim(`// tip: ${_getRandomTip()}`)}`)
   }
 
   if (lastError) {
@@ -120414,7 +120406,7 @@ function config (options) {
 
   // dotenvKey exists but .env.vault file does not exist
   if (!vaultPath) {
-    _warn(`You set DOTENV_KEY but you are missing a .env.vault file at ${vaultPath}. Did you forget to build it?`)
+    _warn(`you set DOTENV_KEY but you are missing a .env.vault file at ${vaultPath}`)
 
     return DotenvModule.configDotenv(options)
   }
@@ -161102,13 +161094,6 @@ module.exports.xL = safeParse
 __webpack_unused_export__ = defaultContentType
 
 
-/***/ }),
-
-/***/ 80056:
-/***/ ((module) => {
-
-module.exports = /*#__PURE__*/JSON.parse('{"name":"dotenv","version":"17.3.1","description":"Loads environment variables from .env file","main":"lib/main.js","types":"lib/main.d.ts","exports":{".":{"types":"./lib/main.d.ts","require":"./lib/main.js","default":"./lib/main.js"},"./config":"./config.js","./config.js":"./config.js","./lib/env-options":"./lib/env-options.js","./lib/env-options.js":"./lib/env-options.js","./lib/cli-options":"./lib/cli-options.js","./lib/cli-options.js":"./lib/cli-options.js","./package.json":"./package.json"},"scripts":{"dts-check":"tsc --project tests/types/tsconfig.json","lint":"standard","pretest":"npm run lint && npm run dts-check","test":"tap run tests/**/*.js --allow-empty-coverage --disable-coverage --timeout=60000","test:coverage":"tap run tests/**/*.js --show-full-coverage --timeout=60000 --coverage-report=text --coverage-report=lcov","prerelease":"npm test","release":"standard-version"},"repository":{"type":"git","url":"git://github.com/motdotla/dotenv.git"},"homepage":"https://github.com/motdotla/dotenv#readme","funding":"https://dotenvx.com","keywords":["dotenv","env",".env","environment","variables","config","settings"],"readmeFilename":"README.md","license":"BSD-2-Clause","devDependencies":{"@types/node":"^18.11.3","decache":"^4.6.2","sinon":"^14.0.1","standard":"^17.0.0","standard-version":"^9.5.0","tap":"^19.2.0","typescript":"^4.8.4"},"engines":{"node":">=12"},"browser":{"fs":false}}');
-
 /***/ })
 
 /******/ });
@@ -161147,6 +161132,9 @@ module.exports = /*#__PURE__*/JSON.parse('{"name":"dotenv","version":"17.3.1","d
 /******/ }
 /******/ 
 /************************************************************************/
+/******/ /* webpack/runtime/asset-relocator-loader */
+/******/ if (typeof __nccwpck_require__ !== 'undefined') __nccwpck_require__.ab = decodeURIComponent(new URL('.', import.meta.url).pathname).slice(import.meta.url.match(/^file:\/\/\/\w:/) ? 1 : 0, -1) + "/";
+/******/ 
 /******/ /* webpack/runtime/compat get default export */
 /******/ (() => {
 /******/ 	// getDefaultExport function for compatibility with non-harmony modules
@@ -161184,10 +161172,6 @@ module.exports = /*#__PURE__*/JSON.parse('{"name":"dotenv","version":"17.3.1","d
 /******/ 		return module;
 /******/ 	};
 /******/ })();
-/******/ 
-/******/ /* webpack/runtime/compat */
-/******/ 
-/******/ if (typeof __nccwpck_require__ !== 'undefined') __nccwpck_require__.ab = new URL('.', import.meta.url).pathname.slice(import.meta.url.match(/^file:\/\/\/\w:/) ? 1 : 0, -1) + "/";
 /******/ 
 /************************************************************************/
 var __webpack_exports__ = {};
@@ -164234,6 +164218,19 @@ function getProxyFetch(destinationUrl) {
 }
 function getApiBaseUrl() {
     return process.env['GITHUB_API_URL'] || 'https://api.github.com';
+}
+function getUserAgentWithOrchestrationId(baseUserAgent) {
+    var _a;
+    const orchId = (_a = process.env['ACTIONS_ORCHESTRATION_ID']) === null || _a === void 0 ? void 0 : _a.trim();
+    if (orchId) {
+        const sanitizedId = orchId.replace(/[^a-z0-9_.-]/gi, '_');
+        const tag = `actions_orchestration_id/${sanitizedId}`;
+        if (baseUserAgent === null || baseUserAgent === void 0 ? void 0 : baseUserAgent.includes(tag))
+            return baseUserAgent;
+        const ua = baseUserAgent ? `${baseUserAgent} ` : '';
+        return `${ua}${tag}`;
+    }
+    return baseUserAgent;
 }
 //# sourceMappingURL=utils.js.map
 ;// CONCATENATED MODULE: ./node_modules/@actions/github/node_modules/universal-user-agent/index.js
@@ -168189,6 +168186,7 @@ const defaults = {
     }
 };
 const utils_GitHub = Octokit.plugin(restEndpointMethods, paginateRest).defaults(defaults);
+
 /**
  * Convience function to correctly format Octokit Options to pass into the constructor.
  *
@@ -168201,6 +168199,11 @@ function utils_getOctokitOptions(token, options) {
     const auth = Utils.getAuthString(token, opts);
     if (auth) {
         opts.auth = auth;
+    }
+    // Orchestration ID
+    const userAgent = Utils.getUserAgentWithOrchestrationId(opts.userAgent);
+    if (userAgent) {
+        opts.userAgent = userAgent;
     }
     return opts;
 }
