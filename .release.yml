@@ -1,0 +1,23 @@
+name: "component-detection-dependency-submission-action"
+repository: "advanced-security/component-detection-dependency-submission-action"
+version: "0.1.4"
+default: false
+
+locations:
+  - name: "Node Manifest"
+    paths:
+      - package.json
+    patterns:
+      - '"version":\s*"([0-9]+\.[0-9]+\.[0-9]+)"'
+
+  - name: "Basic Usage Documentation"
+    paths:
+      - README.md
+    patterns:
+      - 'advanced-security/component-detection-dependency-submission-action@v([0-9]+\.[0-9]+\.[0-9]+)\r?\n```'
+
+  - name: "Configured Usage Documentation"
+    paths:
+      - README.md
+    patterns:
+      - 'advanced-security/component-detection-dependency-submission-action@v([0-9]+\.[0-9]+\.[0-9]+)\r?\n        with:'
