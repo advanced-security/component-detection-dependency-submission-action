@@ -123276,7 +123276,7 @@ class MemoryCacheStore extends EventEmitter {
 
           // Perform eviction
           for (const [key, entries] of store.#entries) {
-            for (const entry of entries.splice(0, entries.length / 2)) {
+            for (const entry of entries.splice(0, Math.ceil(entries.length / 2))) {
               store.#size -= entry.size
               store.#count -= 1
             }
@@ -127432,7 +127432,7 @@ module.exports = {
 
 
 const { InvalidArgumentError, MaxOriginsReachedError } = __nccwpck_require__(68707)
-const { kBusy, kClients, kConnected, kRunning, kClose, kDestroy, kDispatch, kUrl } = __nccwpck_require__(36443)
+const { kBusy, kClients, kConnected, kRunning, kPending, kClose, kDestroy, kDispatch, kUrl } = __nccwpck_require__(36443)
 const DispatcherBase = __nccwpck_require__(21841)
 const Pool = __nccwpck_require__(30628)
 const Client = __nccwpck_require__(23701)
@@ -127528,7 +127528,12 @@ class Agent extends DispatcherBase {
           return
         }
 
-        if (dispatcher[kConnected] > 0 || dispatcher[kBusy]) {
+        // A GOAWAY detaches the HTTP/2 session before requeued requests are
+        // dispatched on a replacement connection. At that point the pool has
+        // no connected clients and is not busy, but it still has pending work.
+        // Closing it here lets the replacement Client finish those requests
+        // and then destroys that new connection with ClientDestroyedError.
+        if (dispatcher[kConnected] > 0 || dispatcher[kBusy] || dispatcher[kPending] > 0) {
           return
         }
 
@@ -127664,7 +127669,7 @@ class BalancedPool extends PoolBase {
       throw new InvalidArgumentError('factory must be a function.')
     }
 
-    super()
+    super(opts)
 
     this[kOptions] = { ...util.deepClone(opts) }
     this[kIndex] = -1
@@ -128883,7 +128888,7 @@ function onSocketClose () {
 
 function clearIdleSocketValidation (socket) {
   if (socket[kIdleSocketValidationTimeout]) {
-    clearTimeout(socket[kIdleSocketValidationTimeout])
+    clearImmediate(socket[kIdleSocketValidationTimeout])
     socket[kIdleSocketValidationTimeout] = null
   }
 
@@ -128892,15 +128897,23 @@ function clearIdleSocketValidation (socket) {
 
 function scheduleIdleSocketValidation (client, socket) {
   socket[kIdleSocketValidation] = 1
-  socket[kIdleSocketValidationTimeout] = setTimeout(() => {
+  // Yield to the check phase (after poll) so unsolicited bytes / FIN / RST
+  // already pending on this idle keep-alive socket are processed before the
+  // next request is written (GHSA-35p6-xmwp-9g52).
+  //
+  // setTimeout(0) pays Node's ~1ms timer floor on every sequential reuse
+  // (#5493). setImmediate avoids that, but an *unref'd* Immediate lets poll
+  // block for ~500ms when the event loop is otherwise idle (#5600 / #5606).
+  // A ref'd Immediate both keeps the pending request alive and makes poll
+  // return immediately — the hybrid those issues asked for.
+  socket[kIdleSocketValidationTimeout] = setImmediate(() => {
     socket[kIdleSocketValidationTimeout] = null
     socket[kIdleSocketValidation] = 2
 
     if (client[kSocket] === socket && !socket.destroyed) {
       client[kResume]()
     }
-  }, 0)
-  socket[kIdleSocketValidationTimeout].unref?.()
+  })
 }
 
 /**
@@ -129641,7 +129654,8 @@ const {
   InformationalError,
   InvalidArgumentError,
   HeadersTimeoutError,
-  BodyTimeoutError
+  BodyTimeoutError,
+  ResponseExceededMaxSizeError
 } = __nccwpck_require__(68707)
 const {
   kUrl,
@@ -129670,7 +129684,8 @@ const {
   kRemoteSettings,
   kHTTP2Stream,
   kHTTP2SessionState,
-  kHTTP2Options
+  kHTTP2Options,
+  kMaxResponseSize
 } = __nccwpck_require__(36443)
 const { channels } = __nccwpck_require__(42414)
 
@@ -130653,9 +130668,11 @@ function writeH2 (client, request) {
   const state = {
     abort: null,
     body: request.body,
+    bytesRead: 0,
     client,
     contentLength: null,
     expectsPayload: false,
+    maxResponseSize: client[kMaxResponseSize],
     request,
     headersTimeout,
     bodyTimeout,
@@ -130891,6 +130908,7 @@ function writeH2 (client, request) {
   // become unreachable once the stream closes, so plain `on` avoids the
   // per-listener `once` wrapper allocation.
   stream.on('response', onResponse)
+  stream.on('headers', onInterimResponse)
   stream.on('end', onEnd)
   stream.on('error', onError)
   stream.on('frameError', onFrameError)
@@ -130911,6 +130929,7 @@ function removeRequestStreamListeners (stream) {
   stream.off('error', noop)
   stream.off('continue', writeBodyH2)
   stream.off('response', onResponse)
+  stream.off('headers', onInterimResponse)
   stream.off('end', onEnd)
   stream.off('error', onError)
   stream.off('frameError', onFrameError)
@@ -130953,15 +130972,49 @@ function onData (chunk) {
     return
   }
 
+  const { request, maxResponseSize } = state
+
+  if (request.aborted || request.completed) {
+    return
+  }
+
+  if (maxResponseSize > -1 && state.bytesRead + chunk.length > maxResponseSize) {
+    // Unlike HTTP/1.1, which destroys the socket because it cannot abandon one
+    // response without losing framing, resetting the offending stream leaves
+    // the session usable for its siblings.
+    state.abort(new ResponseExceededMaxSizeError())
+    return
+  }
+
+  state.bytesRead += chunk.length
+
+  if (request.onResponseData(chunk) === false) {
+    stream.pause()
+  }
+}
+
+function onInterimResponse (headers) {
+  const stream = this
+  const state = stream[kRequestStreamState]
+
+  if (state == null) {
+    return
+  }
+
   const { request } = state
 
   if (request.aborted || request.completed) {
     return
   }
 
-  if (request.onResponseData(chunk) === false) {
-    stream.pause()
-  }
+  // node http2 emits 'headers' for interim (1xx) informational responses,
+  // while the final response arrives via 'response'. Forward these to the
+  // handler so that onInfo is invoked, matching the HTTP/1 behaviour and the
+  // documented onInfo contract.
+  const statusCode = headers[HTTP2_HEADER_STATUS]
+  delete headers[HTTP2_HEADER_STATUS]
+
+  request.onResponseStart(Number(statusCode), headers, noop, '')
 }
 
 function onResponse (headers) {
@@ -131516,7 +131569,8 @@ class Client extends DispatcherBase {
     connectionWindowSize,
     pingInterval,
     webSocket,
-    h2Options
+    h2Options,
+    eventSource
   } = {}) {
     if (keepAlive !== undefined) {
       throw new InvalidArgumentError('unsupported keepAlive, use pipelining=0 instead')
@@ -131655,7 +131709,7 @@ class Client extends DispatcherBase {
       }
     }
 
-    super({ webSocket })
+    super({ webSocket, eventSource })
 
     if (typeof connect !== 'function') {
       connect = buildConnector({
@@ -132126,6 +132180,7 @@ module.exports = Client
 
 
 
+const buffer = __nccwpck_require__(4573)
 const Dispatcher = __nccwpck_require__(30883)
 const {
   ClientDestroyedError,
@@ -132137,6 +132192,7 @@ const { kDestroy, kClose, kClosed, kDestroyed, kDispatch } = __nccwpck_require__
 const kOnDestroyed = Symbol('onDestroyed')
 const kOnClosed = Symbol('onClosed')
 const kWebSocketOptions = Symbol('webSocketOptions')
+const kEventSourceOptions = Symbol('eventSourceOptions')
 
 class DispatcherBase extends Dispatcher {
   /** @type {boolean} */
@@ -132157,15 +132213,25 @@ class DispatcherBase extends Dispatcher {
   constructor (opts) {
     super()
     this[kWebSocketOptions] = opts?.webSocket ?? {}
+    this[kEventSourceOptions] = opts?.eventSource ?? {}
   }
 
   /**
-   * @returns {import('../../types/dispatcher').WebSocketOptions}
+   * @returns {import('../../types/client').Client.WebSocketOptions}
    */
   get webSocketOptions () {
     return {
       maxFragments: this[kWebSocketOptions].maxFragments ?? 131072,
       maxPayloadSize: this[kWebSocketOptions].maxPayloadSize ?? 128 * 1024 * 1024 // 128 MB default
+    }
+  }
+
+  /**
+   * @returns {import('../../types/client').Client.EventSourceOptions}
+   */
+  get eventSourceOptions () {
+    return {
+      maxEventSize: this[kEventSourceOptions].maxEventSize ?? buffer.kStringMaxLength
     }
   }
 
@@ -132318,6 +132384,7 @@ module.exports = DispatcherBase
 
 
 const EventEmitter = __nccwpck_require__(78474)
+const { kUrl } = __nccwpck_require__(36443)
 
 class Dispatcher extends EventEmitter {
   dispatch () {
@@ -132351,6 +132418,15 @@ class Dispatcher extends EventEmitter {
       if (dispatch == null || typeof dispatch !== 'function' || dispatch.length !== 2) {
         throw new TypeError('invalid interceptor')
       }
+    }
+
+    const originalDispatch = dispatch
+    const self = this
+    dispatch = function (opts, handler) {
+      if (opts && typeof opts === 'object' && !opts.origin && self[kUrl]) {
+        opts = Object.assign({}, opts, { origin: self[kUrl].origin })
+      }
+      return originalDispatch(opts, handler)
     }
 
     return new Proxy(this, {
@@ -132499,7 +132575,7 @@ class EnvHttpProxyAgent extends DispatcherBase {
   #opts = null
 
   constructor (opts = {}) {
-    super()
+    super(opts)
     this.#opts = opts
 
     const { httpProxy, httpsProxy, noProxy, ...agentOpts } = opts
@@ -132552,6 +132628,13 @@ class EnvHttpProxyAgent extends DispatcherBase {
     // brackets from IPv6 literals (e.g. "[::1]" -> "::1") so that the
     // result matches the unbracketed form stored by #parseNoProxy.
     hostname = hostname.replace(/:\d*$/, '').replace(/^\[(.+)\]$/, '$1').toLowerCase()
+    // Drop a trailing dot: it only marks the fully qualified form of a domain
+    // name ("example.com." and "example.com" are the same name, RFC 1034 root
+    // label). This runs on every dispatch, so it is a charCode check rather
+    // than a third regex. `length > 1` leaves the degenerate host "." alone.
+    if (hostname.length > 1 && hostname.charCodeAt(hostname.length - 1) === 46) {
+      hostname = hostname.slice(0, -1)
+    }
     port = Number.parseInt(port, 10) || DEFAULT_PORTS[protocol] || 0
     if (!this.#shouldProxy(hostname, port)) {
       return this[kNoProxyAgent]
@@ -132626,8 +132709,8 @@ class EnvHttpProxyAgent extends DispatcherBase {
       }
 
       noProxyEntries.push({
-        // strip leading dot or asterisk with dot
-        hostname: hostname.replace(/^\*?\./, '').toLowerCase(),
+        // strip leading dot or asterisk with dot, and any trailing dot
+        hostname: hostname.replace(/^\*?\./, '').replace(/^(.+)\.$/, '$1').toLowerCase(),
         port
       })
     }
@@ -133367,7 +133450,7 @@ class ProxyAgent extends DispatcherBase {
 
     const { proxyTunnel, connectTimeout } = opts
 
-    super()
+    super(opts)
 
     const url = this.#getUrl(opts)
     const { href, origin, port, protocol, username, password, hostname: proxyHostname } = url
@@ -133739,7 +133822,7 @@ class RoundRobinPool extends PoolBase {
       })
     }
 
-    super()
+    super(options)
 
     this[kConnections] = connections || null
     this[kUrl] = util.parseOrigin(origin)
@@ -133869,7 +133952,7 @@ let experimentalWarningEmitted = false
  */
 class Socks5ProxyAgent extends DispatcherBase {
   constructor (proxyUrl, options = {}) {
-    super()
+    super(options)
 
     // Emit experimental warning only once
     if (!experimentalWarningEmitted) {
@@ -133955,6 +134038,7 @@ class Socks5ProxyAgent extends DispatcherBase {
     const authenticationReady = Promise.withResolvers()
 
     const authenticationTimeout = setTimeout(() => {
+      socks5Client.destroy()
       authenticationReady.reject(new Error('SOCKS5 authentication timeout'))
     }, 5000)
 
@@ -133988,6 +134072,7 @@ class Socks5ProxyAgent extends DispatcherBase {
     const connectionReady = Promise.withResolvers()
 
     const connectionTimeout = setTimeout(() => {
+      socks5Client.destroy()
       connectionReady.reject(new Error('SOCKS5 connection timeout'))
     }, 5000)
 
@@ -134427,6 +134512,14 @@ class CacheHandler {
     this.#writeStream?.destroy()
     this.#writeStream = undefined
     this.#handler.onRequestStart?.(controller, context)
+  }
+
+  onBodySent (chunk) {
+    this.#handler.onBodySent?.(chunk)
+  }
+
+  onRequestSent () {
+    this.#handler.onRequestSent?.()
   }
 
   onRequestUpgrade (controller, statusCode, headers, socket) {
@@ -135260,7 +135353,13 @@ module.exports = class DecoratorHandler {
   /**
    * @deprecated
    */
-  onBodySent () {}
+  onBodySent (...args) {
+    return this.#handler.onBodySent?.(...args)
+  }
+
+  onRequestSent (...args) {
+    return this.#handler.onRequestSent?.(...args)
+  }
 }
 
 
@@ -135636,12 +135735,22 @@ class DeduplicationHandler {
       get aborted () { return state.aborted },
       get reason () { return state.reason },
       abort: (reason) => {
+        if (state.aborted) {
+          return
+        }
+
         state.aborted = true
         state.reason = reason ?? null
         waitingHandler.done = true
         waitingHandler.pendingTrailers = null
         waitingHandler.bufferedChunks = []
         waitingHandler.bufferedBytes = 0
+
+        try {
+          handler.onResponseError?.(waitingHandler.controller, state.reason ?? new RequestAbortedError())
+        } catch {
+          // Ignore errors from waiting handlers
+        }
       }
     }
 
@@ -135715,12 +135824,8 @@ class DeduplicationHandler {
     waitingHandler.bufferedChunks = []
     waitingHandler.bufferedBytes = 0
 
-    try {
-      waitingHandler.controller.abort(err)
-      waitingHandler.handler.onResponseError?.(waitingHandler.controller, err)
-    } catch {
-      // Ignore errors from waiting handlers
-    }
+    // controller.abort(err) notifies the handler via onResponseError
+    waitingHandler.controller.abort(err)
   }
 
   #pruneDoneWaitingHandlers () {
@@ -135779,6 +135884,14 @@ class RedirectHandler {
 
   onRequestStart (controller, context) {
     this.handler.onRequestStart?.(controller, { ...context, history: this.history })
+  }
+
+  onBodySent (chunk) {
+    this.handler.onBodySent?.(chunk)
+  }
+
+  onRequestSent () {
+    this.handler.onRequestSent?.()
   }
 
   onRequestUpgrade (controller, statusCode, headers, socket) {
@@ -135968,7 +136081,7 @@ module.exports = RedirectHandler
 const assert = __nccwpck_require__(34589)
 
 const { kRetryHandlerDefaultRetry } = __nccwpck_require__(36443)
-const { RequestRetryError } = __nccwpck_require__(68707)
+const { RequestRetryError, RequestAbortedError } = __nccwpck_require__(68707)
 const {
   isDisturbed,
   parseRangeHeader,
@@ -136007,14 +136120,26 @@ function validatePartialResponseContentLength (headers, range, statusCode, retry
 // new one: backpressure pauses the new connection's controller, but the
 // consumer's resume() targets the old one, so the resumed body stalls forever.
 // The proxy always forwards to the controller of the currently active connection.
+// An abort is additionally reported to the handler so it can cancel a pending
+// retry backoff instead of letting the request hang until the backoff elapses.
+// The notification is a private callback the handler hands over on construction,
+// so nothing outside the handler can trigger it.
 class RetryController {
-  constructor () {
+  #onAbort
+
+  constructor (onAbort) {
+    this.#onAbort = onAbort
     this.target = null
   }
 
   pause () { this.target?.pause() }
   resume () { this.target?.resume() }
-  abort (reason) { this.target?.abort(reason) }
+
+  abort (reason) {
+    this.target?.abort(reason)
+    this.#onAbort(reason)
+  }
+
   get paused () { return this.target?.paused ?? false }
   get aborted () { return this.target?.aborted ?? false }
   get reason () { return this.target?.reason ?? null }
@@ -136078,7 +136203,16 @@ class RetryHandler {
     this.etag = null
     this.statusCode = null
     this.headers = null
-    this.controllerProxy = new RetryController()
+    this.controllerProxy = new RetryController(reason => this.#onAbort(reason))
+    // A retry decision is in flight (the policy may be holding a backoff
+    // timer). While pending, a consumer abort cancels the wait.
+    this.retryPending = false
+    // Backoff timer returned by the retry policy, so #onAbort can cancel it.
+    // Null for custom policies that do not return their timer.
+    this.retryTimer = null
+    // Set once an abort during the backoff delivered the terminal error
+    // downstream; late policy callbacks and connection errors are then moot.
+    this.aborted = false
   }
 
   onResponseStartWithRetry (controller, statusCode, headers, statusMessage, err) {
@@ -136101,6 +136235,13 @@ class RetryHandler {
     }
 
     function shouldRetry (passedErr) {
+      if (this.aborted) {
+        // Aborted while the policy was deciding; the decision is moot.
+        return
+      }
+      this.retryPending = false
+      this.retryTimer = null
+
       if (passedErr) {
         this.headersSent = true
         this.handler.onResponseStart?.(this.controllerProxy, statusCode, headers, statusMessage)
@@ -136120,14 +136261,17 @@ class RetryHandler {
     // between, leaving this one paused forever -- the very stall the proxy exists
     // to prevent.
     controller.pause()
-    this.retryOpts.retry(
+    // The default policy returns its backoff timer so an abort can cancel it;
+    // a custom policy may return anything (or nothing), which is ignored.
+    this.retryPending = true
+    this.retryTimer = this.retryOpts.retry(
       err,
       {
         state: { counter: this.retryCount },
         opts: { retryOptions: this.retryOpts, ...this.opts }
       },
       shouldRetry.bind(this)
-    )
+    ) ?? null
   }
 
   onRequestStart (controller, context) {
@@ -136140,6 +136284,14 @@ class RetryHandler {
     if (!this.headersSent) {
       this.handler.onRequestStart?.(this.controllerProxy, context)
     }
+  }
+
+  onBodySent (chunk) {
+    this.handler.onBodySent?.(chunk)
+  }
+
+  onRequestSent () {
+    this.handler.onRequestSent?.()
   }
 
   onRequestUpgrade (_controller, statusCode, headers, socket) {
@@ -136156,7 +136308,8 @@ class RetryHandler {
       timeoutFactor,
       statusCodes,
       errorCodes,
-      methods
+      methods,
+      retryAfter
     } = retryOptions
     const { counter } = state
 
@@ -136188,7 +136341,7 @@ class RetryHandler {
       return
     }
 
-    let retryAfterHeader = headers?.['retry-after']
+    let retryAfterHeader = retryAfter === false ? undefined : headers?.['retry-after']
     if (retryAfterHeader) {
       retryAfterHeader = Number(retryAfterHeader)
       retryAfterHeader = Number.isNaN(retryAfterHeader)
@@ -136203,7 +136356,9 @@ class RetryHandler {
           ? Math.min(retryAfterHeader, maxTimeout)
           : Math.min(minTimeout * timeoutFactor ** (counter - 1), maxTimeout)
 
-    setTimeout(() => cb(null), retryTimeout)
+    // Return the backoff timer so the handler can cancel it when the
+    // consumer aborts while the retry decision is pending.
+    return setTimeout(() => cb(null), retryTimeout)
   }
 
   onResponseStart (controller, statusCode, headers, statusMessage) {
@@ -136401,6 +136556,12 @@ class RetryHandler {
   }
 
   onResponseError (controller, err) {
+    if (this.aborted) {
+      // #onAbort already delivered the terminal error downstream; the late
+      // error of the torn-down connection must not be forwarded twice.
+      return
+    }
+
     // controller is THIS failed connection (not the proxy): we inspect whether
     // the consumer aborted it to decide retry-vs-propagate.
     if (controller?.aborted || isDisturbed(this.opts.body)) {
@@ -136409,6 +136570,13 @@ class RetryHandler {
     }
 
     function shouldRetry (returnedErr) {
+      if (this.aborted) {
+        // Aborted while the policy was deciding; the decision is moot.
+        return
+      }
+      this.retryPending = false
+      this.retryTimer = null
+
       if (!returnedErr) {
         this.retry()
         return
@@ -136428,14 +136596,31 @@ class RetryHandler {
       this.retryCount += 1
     }
 
-    this.retryOpts.retry(
+    this.retryPending = true
+    this.retryTimer = this.retryOpts.retry(
       err,
       {
         state: { counter: this.retryCount },
         opts: { retryOptions: this.retryOpts, ...this.opts }
       },
       shouldRetry.bind(this)
-    )
+    ) ?? null
+  }
+
+  #onAbort (reason) {
+    // A consumer abort lands on the controller proxy. If the retry policy is
+    // still deciding (typically holding a backoff timer), cancel the wait and
+    // surface the abort immediately instead of letting the request hang until
+    // the backoff elapses.
+    if (!this.retryPending) {
+      return
+    }
+
+    this.aborted = true
+    this.retryPending = false
+    clearTimeout(this.retryTimer)
+    this.retryTimer = null
+    this.handler.onResponseError?.(this.controllerProxy, reason ?? new RequestAbortedError())
   }
 }
 
@@ -138163,7 +138348,7 @@ class DumpHandler extends DecoratorHandler {
       return
     }
 
-    if (this.#controller.aborted === true) {
+    if (this.aborted === true) {
       super.onResponseError(controller, this.reason)
       return
     }
@@ -139030,13 +139215,25 @@ class MockAgent extends Dispatcher {
     opts.origin = normalizeOrigin(opts.origin)
 
     // Call MockAgent.get to perform additional setup before dispatching as normal
-    this.get(opts.origin)
+    const mockDispatcher = this.get(opts.origin)
 
     this[kMockAgentAddCallHistoryLog](opts)
 
     const acceptNonStandardSearchParameters = this[kMockAgentAcceptsNonStandardSearchParameters]
 
     const dispatchOpts = { ...opts }
+
+    // Agent keeps HTTP/1.1-only dispatchers under a separate key. Legacy
+    // global dispatcher consumers use that path, so mirror the mock dispatches
+    // before delegating to the internal Agent.
+    if (dispatchOpts.allowH2 === false) {
+      const http1OnlyKey = `${dispatchOpts.origin}#http1-only`
+      if (!this[kClients].has(http1OnlyKey)) {
+        const http1OnlyDispatcher = this[kFactory](dispatchOpts.origin)
+        http1OnlyDispatcher[kDispatches] = mockDispatcher[kDispatches]
+        this[kMockAgentSet](http1OnlyKey, http1OnlyDispatcher)
+      }
+    }
 
     if (acceptNonStandardSearchParameters && dispatchOpts.path) {
       const [path, searchParams] = dispatchOpts.path.split('?')
@@ -140243,8 +140440,7 @@ function mockDispatch (opts, handler) {
             handler.onResponseError(null, new InvalidArgumentError('reply options callback must return an object'))
             return
           }
-          mockDispatch.data = { ...responseDefaults, ...resolvedData }
-          dispatchMockReply(mockDispatches, mockDispatch, key, opts, handler)
+          dispatchMockReply(mockDispatches, mockDispatch, key, opts, handler, { ...responseDefaults, ...resolvedData })
         },
         (error) => {
           handler.onResponseError(null, error)
@@ -140257,7 +140453,7 @@ function mockDispatch (opts, handler) {
       throw new InvalidArgumentError('reply options callback must return an object')
     }
 
-    mockDispatch.data = { ...responseDefaults, ...callbackResult }
+    return dispatchMockReply(mockDispatches, mockDispatch, key, opts, handler, { ...responseDefaults, ...callbackResult })
   }
 
   return dispatchMockReply(mockDispatches, mockDispatch, key, opts, handler)
@@ -140266,9 +140462,13 @@ function mockDispatch (opts, handler) {
 /**
  * Replies to a request once the mock dispatch data is fully resolved
  */
-function dispatchMockReply (mockDispatches, mockDispatch, key, opts, handler) {
-  // Parse mockDispatch data
-  const { data: response, delay } = mockDispatch
+function dispatchMockReply (mockDispatches, mockDispatch, key, opts, handler, resolvedResponse) {
+  // Parse mockDispatch data. When a reply callback has already been resolved
+  // in mockDispatch() (i.e. no body lifecycle hooks are involved), the resolved
+  // response is passed in here, leaving mockDispatch.data untouched so the
+  // callback can be re-invoked for persistent / times() replies.
+  const { data: responseData, delay } = mockDispatch
+  const response = resolvedResponse ?? responseData
 
   // If specified, trigger dispatch error
   if (response.error !== null) {
@@ -140364,8 +140564,7 @@ function dispatchMockReply (mockDispatches, mockDispatch, key, opts, handler) {
               handler.onResponseError(null, new InvalidArgumentError('reply options callback must return an object'))
               return
             }
-            mockDispatch.data = { ...responseDefaults, ...resolvedData }
-            handleReply(dispatches, mockDispatch.data)
+            handleReply(dispatches, { ...responseDefaults, ...resolvedData })
           },
           (err) => {
             handler.onResponseError(null, err)
@@ -140378,8 +140577,7 @@ function dispatchMockReply (mockDispatches, mockDispatch, key, opts, handler) {
         throw new InvalidArgumentError('reply options callback must return an object')
       }
 
-      mockDispatch.data = { ...responseDefaults, ...callbackResult }
-      handleReply(dispatches, mockDispatch.data)
+      handleReply(dispatches, { ...responseDefaults, ...callbackResult })
       return
     }
 
@@ -145324,14 +145522,16 @@ function parseUnparsedAttributes (unparsedAttributes, cookieAttributeList = {}) 
     // 1. If the first character of the attribute-value is not a DIGIT or a
     //    "-" character, ignore the cookie-av.
     const charCode = attributeValue.charCodeAt(0)
+    const startsWithDigit = charCode >= 48 && charCode <= 57
+    const startsWithSignedDigit = attributeValue[0] === '-' && attributeValue.length > 1
 
-    if ((charCode < 48 || charCode > 57) && attributeValue[0] !== '-') {
+    if (!startsWithDigit && !startsWithSignedDigit) {
       return parseUnparsedAttributes(unparsedAttributes, cookieAttributeList)
     }
 
     // 2. If the remainder of attribute-value contains a non-DIGIT
     //    character, ignore the cookie-av.
-    if (!/^\d+$/.test(attributeValue)) {
+    if (/[^\d]/.test(attributeValue.slice(1))) {
       return parseUnparsedAttributes(unparsedAttributes, cookieAttributeList)
     }
 
@@ -145815,6 +146015,7 @@ module.exports = {
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 
+const buffer = __nccwpck_require__(4573)
 const { Transform } = __nccwpck_require__(57075)
 const { isASCIINumber, isValidLastEventId } = __nccwpck_require__(94811)
 
@@ -145838,6 +146039,8 @@ const COLON = 0x3A
  * @type {32} SPACE
  */
 const SPACE = 0x20
+
+const defaultMaxEventSize = buffer.kStringMaxLength
 
 const DATA = Buffer.from('data')
 const EVENT = Buffer.from('event')
@@ -145880,6 +146083,12 @@ function isFieldName (line, length, field) {
   }
 
   return true
+}
+
+function createMaxEventSizeExceededError () {
+  const error = new Error('EventSource message size exceeded')
+  error.aborted = false
+  return error
 }
 
 /**
@@ -145930,6 +146139,8 @@ class EventSourceStream extends Transform {
   pos = 0
   lineChunkIndex = 0
   linePos = 0
+  eventDataSize = 0
+  maxEventSize
 
   event = {
     data: undefined,
@@ -145941,6 +146152,7 @@ class EventSourceStream extends Transform {
   /**
    * @param {object} options
    * @param {boolean} [options.readableObjectMode]
+   * @param {number} [options.maxEventSize]
    * @param {eventSourceSettings} [options.eventSourceSettings]
    * @param {(chunk: any, encoding?: BufferEncoding | undefined) => boolean} [options.push]
    */
@@ -145952,6 +146164,7 @@ class EventSourceStream extends Transform {
     super(options)
 
     this.state = options.eventSourceSettings || {}
+    this.maxEventSize = options.maxEventSize ?? defaultMaxEventSize
     if (options.push) {
       this.push = options.push
     }
@@ -146047,7 +146260,12 @@ class EventSourceStream extends Transform {
 
         // In any case, we can process the line as we reached an
         // end-of-line character
-        this.parseLine(this.readLine(), this.event)
+        try {
+          this.parseLine(this.readLine(), this.event)
+        } catch (error) {
+          callback(error)
+          return
+        }
         this.consumeCurrentByte()
         // A line was processed and this could be the end of the event. We need
         // to check if the next line is empty to determine if the event is
@@ -146098,6 +146316,13 @@ class EventSourceStream extends Transform {
     }
 
     if (isFieldName(line, fieldLength, DATA)) {
+      const valueBytes = line.length - valueStart
+      const eventDataSize = this.eventDataSize + (event.data === undefined ? 0 : 1) + valueBytes
+
+      if (this.maxEventSize > 0 && eventDataSize > this.maxEventSize) {
+        throw createMaxEventSizeExceededError()
+      }
+
       const value = line.toString('utf8', valueStart)
 
       if (event.data === undefined) {
@@ -146105,6 +146330,7 @@ class EventSourceStream extends Transform {
       } else {
         event.data += `\n${value}`
       }
+      this.eventDataSize = eventDataSize
       return
     }
 
@@ -146161,6 +146387,7 @@ class EventSourceStream extends Transform {
     this.event.event = undefined
     this.event.id = undefined
     this.event.retry = undefined
+    this.eventDataSize = 0
   }
 
   hasPendingEvent () {
@@ -146327,6 +146554,7 @@ const { isNetworkError } = __nccwpck_require__(99051)
 const { kEnumerableProperty } = __nccwpck_require__(3440)
 const { environmentSettingsObject } = __nccwpck_require__(73168)
 const { createPotentialCORSRequest } = __nccwpck_require__(94811)
+const { getGlobalDispatcher } = __nccwpck_require__(32581)
 
 let experimentalWarned = false
 
@@ -146598,6 +146826,7 @@ class EventSource extends EventTarget {
 
       const eventSourceStream = new EventSourceStream({
         eventSourceSettings: this.#state,
+        maxEventSize: this.#dispatcher.eventSourceOptions?.maxEventSize,
         push: (event) => {
           this.dispatchEvent(createFastMessageEvent(
             event.type,
@@ -146782,7 +147011,8 @@ webidl.converters.EventSourceInitDict = webidl.dictionaryConverter([
   },
   {
     key: 'dispatcher', // undici only
-    converter: webidl.converters.any
+    converter: webidl.converters.any,
+    defaultValue: () => getGlobalDispatcher()
   },
   {
     key: 'node', // undici only
@@ -153183,7 +153413,7 @@ function makeRequest (init) {
     serviceWorkers: init.serviceWorkers ?? 'all',
     initiator: init.initiator ?? '',
     destination: init.destination ?? '',
-    priority: init.priority ?? null,
+    priority: init.priority ?? 'auto',
     origin: init.origin ?? 'client',
     policyContainer: init.policyContainer ?? 'client',
     referrer: init.referrer ?? 'client',
@@ -153389,8 +153619,7 @@ webidl.converters.RequestInit = webidl.dictionaryConverter([
   {
     key: 'priority',
     converter: webidl.converters.DOMString,
-    allowedValues: ['high', 'low', 'auto'],
-    defaultValue: () => 'auto'
+    allowedValues: ['high', 'low', 'auto']
   }
 ])
 
