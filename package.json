@@ -26,7 +26,8 @@
   },
   "homepage": "https://github.com/advanced-security/component-detection-dependency-submission-action#readme",
   "overrides": {
-    "undici@<6.28.0": "6.28.0"
+    "undici@<6.28.0": "6.28.0",
+    "@babel/core": "7.29.6"
   },
   "dependencies": {
     "@actions/core": "^3.0.1",
