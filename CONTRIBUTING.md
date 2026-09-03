@@ -27,6 +27,12 @@ Here are a few things you can do that will increase the likelihood of your pull 
 - Keep your change as focused as possible. If there are multiple changes you would like to make that are not dependent upon each other, consider submitting them as separate pull requests.
 - Write a [good commit message](http://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html).
 
+## Cutting a release
+
+Maintainers can run the [Release workflow](https://github.com/advanced-security/component-detection-dependency-submission-action/actions/workflows/release.yml) with a patch, minor, or major bump. The workflow opens a pull request that updates the tracked version in `.release.yml`, the package manifest and lockfile, the README examples, and `dist/`.
+
+Merging that pull request publishes the matching GitHub release and updates the floating major and minor tags. An explicit version can also be dispatched for an immediate release or pre-release.
+
 ## Resources
 
 - [How to Contribute to Open Source](https://opensource.guide/how-to-contribute/)
