@@ -79,4 +79,6 @@ async function run() {
   );
 }
 
-run();
+run().catch((error) => {
+  core.setFailed(error instanceof Error ? error.message : String(error));
+});

@@ -7,11 +7,15 @@ describe("retrySnapshotSubmission", () => {
       .fn()
       .mockRejectedValueOnce(new Error("temporary failure"))
       .mockResolvedValueOnce(undefined);
+    const warn = jest.fn();
     const wait = jest.fn().mockResolvedValue(undefined);
 
-    await retrySnapshotSubmission(submit, jest.fn(), wait);
+    await retrySnapshotSubmission(submit, warn, wait);
 
     expect(submit).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalledWith(
+      "Snapshot submission failed (attempt 1/3): Error: temporary failure. Retrying in 1000ms..."
+    );
     expect(wait).toHaveBeenCalledWith(1000);
   });
 

@@ -4,6 +4,9 @@ const RETRY_DELAY_MS = 1000;
 const delay = (milliseconds: number): Promise<void> =>
   new Promise((resolve) => setTimeout(() => resolve(), milliseconds));
 
+const formatError = (error: unknown): string =>
+  String(error).replace(/\s+/g, " ").trim();
+
 export async function retrySnapshotSubmission(
   submit: () => Promise<void>,
   warn: (message: string) => void,
@@ -18,10 +21,11 @@ export async function retrySnapshotSubmission(
         throw error;
       }
 
+      const retryDelay = RETRY_DELAY_MS * attempt;
       warn(
-        `Snapshot submission failed (attempt ${attempt}/${MAX_SUBMISSION_ATTEMPTS}). Retrying...`
+        `Snapshot submission failed (attempt ${attempt}/${MAX_SUBMISSION_ATTEMPTS}): ${formatError(error)}. Retrying in ${retryDelay}ms...`
       );
-      await wait(RETRY_DELAY_MS * attempt);
+      await wait(retryDelay);
     }
   }
 }

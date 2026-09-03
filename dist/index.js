@@ -183792,6 +183792,7 @@ class ComponentDetectionPackage extends c {
 const MAX_SUBMISSION_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 1000;
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(() => resolve(), milliseconds));
+const formatError = (error) => String(error).replace(/\s+/g, " ").trim();
 async function retrySnapshotSubmission(submit, warn, wait = delay) {
     for (let attempt = 1; attempt <= MAX_SUBMISSION_ATTEMPTS; attempt++) {
         try {
@@ -183802,8 +183803,9 @@ async function retrySnapshotSubmission(submit, warn, wait = delay) {
             if (attempt === MAX_SUBMISSION_ATTEMPTS) {
                 throw error;
             }
-            warn(`Snapshot submission failed (attempt ${attempt}/${MAX_SUBMISSION_ATTEMPTS}). Retrying...`);
-            await wait(RETRY_DELAY_MS * attempt);
+            const retryDelay = RETRY_DELAY_MS * attempt;
+            warn(`Snapshot submission failed (attempt ${attempt}/${MAX_SUBMISSION_ATTEMPTS}): ${formatError(error)}. Retrying in ${retryDelay}ms...`);
+            await wait(retryDelay);
         }
     }
 }
@@ -183860,7 +183862,9 @@ async function run() {
     }
     await retrySnapshotSubmission(() => L(snapshot), warning);
 }
-run();
+run().catch((error) => {
+    setFailed(error instanceof Error ? error.message : String(error));
+});
 
 
 //# sourceMappingURL=index.js.map
