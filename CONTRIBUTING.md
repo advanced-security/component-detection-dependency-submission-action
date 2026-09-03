@@ -31,7 +31,7 @@ Here are a few things you can do that will increase the likelihood of your pull 
 
 Maintainers can run the [Release workflow](https://github.com/advanced-security/component-detection-dependency-submission-action/actions/workflows/release.yml) with a patch, minor, or major bump. The workflow opens a pull request that updates the tracked version in `.release.yml`, the package manifest and lockfile, the README examples, and `dist/`.
 
-Merging that pull request publishes the matching GitHub release and updates the floating major and minor tags. An explicit version can also be dispatched for an immediate release or pre-release.
+Merging that pull request publishes the matching GitHub release and updates the floating major and minor tags. Publication only proceeds after the reusable `check-dist` workflow confirms that the checked-in distribution matches the source. An explicit version can also be dispatched for an immediate release or pre-release.
 
 ## Resources
 
