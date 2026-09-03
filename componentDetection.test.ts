@@ -19,6 +19,51 @@ test("Parses CLI output", async () => {
   expect(manifests?.length == 2);
 });
 
+describe("ComponentDetection.getAssetName", () => {
+  const originalPlatform = process.platform;
+  const originalArch = process.arch;
+
+  afterEach(() => {
+    Object.defineProperty(process, "platform", { value: originalPlatform });
+    Object.defineProperty(process, "arch", { value: originalArch });
+  });
+
+  const setPlatformAndArch = (platform: string, arch: string) => {
+    Object.defineProperty(process, "platform", { value: platform });
+    Object.defineProperty(process, "arch", { value: arch });
+  };
+
+  test("returns the windows x64 asset name", () => {
+    setPlatformAndArch("win32", "x64");
+    expect(ComponentDetection.getAssetName()).toBe("component-detection-win-x64.exe");
+  });
+
+  test("returns the windows arm64 asset name", () => {
+    setPlatformAndArch("win32", "arm64");
+    expect(ComponentDetection.getAssetName()).toBe("component-detection-win-arm64.exe");
+  });
+
+  test("returns the macOS x64 asset name", () => {
+    setPlatformAndArch("darwin", "x64");
+    expect(ComponentDetection.getAssetName()).toBe("component-detection-osx-x64");
+  });
+
+  test("returns the macOS arm64 asset name", () => {
+    setPlatformAndArch("darwin", "arm64");
+    expect(ComponentDetection.getAssetName()).toBe("component-detection-osx-arm64");
+  });
+
+  test("returns the linux x64 asset name", () => {
+    setPlatformAndArch("linux", "x64");
+    expect(ComponentDetection.getAssetName()).toBe("component-detection-linux-x64");
+  });
+
+  test("returns the linux arm64 asset name", () => {
+    setPlatformAndArch("linux", "arm64");
+    expect(ComponentDetection.getAssetName()).toBe("component-detection-linux-arm64");
+  });
+});
+
 describe("ComponentDetection.makePackageUrl", () => {
   test("returns a valid package url from saturated object", () => {
     const packageUrl = ComponentDetection.makePackageUrl({
