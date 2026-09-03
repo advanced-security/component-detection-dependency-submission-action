@@ -43,6 +43,7 @@
     "ts-jest": "^29.0.5"
   },
   "overrides": {
-    "undici": "^6.24.0"
+    "undici": "^6.24.0",
+    "@babel/core": "7.29.6"
   }
 }
