@@ -183729,7 +183729,7 @@ class ComponentDetection {
         try {
             const latestRelease = await octokit.request("GET /repos/{owner}/{repo}/releases/latest", { owner, repo });
             var downloadURL = "";
-            const assetName = process.platform === "win32" ? "component-detection-win-x64.exe" : "component-detection-linux-x64";
+            const assetName = this.getAssetName();
             latestRelease.data.assets.forEach((asset) => {
                 if (asset.name === assetName) {
                     downloadURL = asset.browser_download_url;
@@ -183742,6 +183742,18 @@ class ComponentDetection {
             core_debug(error.message);
             core_debug(error.stack);
             throw new Error("Failed to download latest release");
+        }
+    }
+    // Determine the name of the component-detection release asset for the current platform and architecture
+    static getAssetName() {
+        const arch = process.arch === "arm64" ? "arm64" : "x64";
+        switch (process.platform) {
+            case "win32":
+                return `component-detection-win-${arch}.exe`;
+            case "darwin":
+                return `component-detection-osx-${arch}`;
+            default:
+                return `component-detection-linux-${arch}`;
         }
     }
     static async fetchWithProxy(url, options) {
