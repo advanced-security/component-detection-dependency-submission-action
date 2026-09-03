@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Component detection
-        uses: advanced-security/component-detection-dependency-submission-action@v0.1.5
+        uses: advanced-security/component-detection-dependency-submission-action@v0.1.6
 ```
 
 Additional `Experimental` and `DefaultOff`  detectors:
@@ -45,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Component detection
-        uses: advanced-security/component-detection-dependency-submission-action@v0.1.5
+        uses: advanced-security/component-detection-dependency-submission-action@v0.1.6
         with:
           # Experimental detectors: Poetry, UvLock, NpmLockfile3, Ivy
           # Default-off detectors: ConanLock, CondaLock, Dockerfile, Pip, SimplePip, Spdx22, Swift
