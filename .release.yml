@@ -1,6 +1,6 @@
 name: "component-detection-dependency-submission-action"
 repository: "advanced-security/component-detection-dependency-submission-action"
-version: "0.1.5"
+version: "0.1.6"
 default: false
 
 locations:
