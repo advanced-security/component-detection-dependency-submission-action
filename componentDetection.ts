@@ -9,7 +9,6 @@ import {
   Manifest,
   submitSnapshot,
 } from '@github/dependency-submission-toolkit'
-import tar from 'tar'
 import fs from 'fs'
 import * as exec from '@actions/exec';
 import dotenv from 'dotenv'
