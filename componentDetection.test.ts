@@ -1,4 +1,4 @@
-import ComponentDetection, { DependencyGraphs } from "./componentDetection";
+import ComponentDetection, { type DependencyGraphs } from "./componentDetection";
 import fs from "fs";
 
 test("Downloads CLI", async () => {
