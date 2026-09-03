@@ -183788,7 +183788,28 @@ class ComponentDetectionPackage extends c {
     }
 }
 
+;// CONCATENATED MODULE: ./snapshotSubmission.ts
+const MAX_SUBMISSION_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 1000;
+const delay = (milliseconds) => new Promise((resolve) => setTimeout(() => resolve(), milliseconds));
+async function retrySnapshotSubmission(submit, warn, wait = delay) {
+    for (let attempt = 1; attempt <= MAX_SUBMISSION_ATTEMPTS; attempt++) {
+        try {
+            await submit();
+            return;
+        }
+        catch (error) {
+            if (attempt === MAX_SUBMISSION_ATTEMPTS) {
+                throw error;
+            }
+            warn(`Snapshot submission failed (attempt ${attempt}/${MAX_SUBMISSION_ATTEMPTS}). Retrying...`);
+            await wait(RETRY_DELAY_MS * attempt);
+        }
+    }
+}
+
 ;// CONCATENATED MODULE: ./index.ts
+
 
 
 
@@ -183837,7 +183858,7 @@ async function run() {
     if (snapshotRef) {
         snapshot.ref = snapshotRef;
     }
-    L(snapshot);
+    await retrySnapshotSubmission(() => L(snapshot), warning);
 }
 run();
 

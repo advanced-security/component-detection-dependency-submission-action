@@ -11,6 +11,7 @@ import {
 } from '@github/dependency-submission-toolkit';
 
 import ComponentDetection from './componentDetection';
+import { retrySnapshotSubmission } from './snapshotSubmission';
 
 async function run() {
   let manifests = await ComponentDetection.scanAndGetManifests(
@@ -72,7 +73,10 @@ async function run() {
     snapshot.ref = snapshotRef;
   }
 
-  submitSnapshot(snapshot);
+  await retrySnapshotSubmission(
+    () => submitSnapshot(snapshot),
+    core.warning
+  );
 }
 
 run();
