@@ -72,7 +72,14 @@ jobs:
             Automated pull request to bump the tracked release version,
             update README.md, synchronize package-lock.json, and rebuild dist/.
 
+  check-dist:
+    if: ${{ (github.event_name == 'push' && !github.event.repository.fork) || (github.event_name == 'workflow_dispatch' && inputs.version != '') }}
+    uses: ./.github/workflows/check-dist.yml
+    permissions:
+      contents: read
+
   manual-release:
+    needs: check-dist
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
     uses: advanced-security/reusable-workflows/.github/workflows/release.yml@cdb58ebdac3e974822957b34c90394db7dd44ccc # v0.3.5
     permissions:
@@ -146,7 +153,7 @@ jobs:
           fi
 
   release:
-    needs: fetch-release
+    needs: [fetch-release, check-dist]
     if: ${{ needs.fetch-release.outputs.release == 'true' }}
     uses: advanced-security/reusable-workflows/.github/workflows/release.yml@cdb58ebdac3e974822957b34c90394db7dd44ccc # v0.3.5
     permissions:

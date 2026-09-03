@@ -17,6 +17,7 @@ on:
     paths-ignore:
       - '**.md'
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   check-dist:
