@@ -6,7 +6,7 @@ export default class ComponentDetection {
     static downloadLatestRelease(): Promise<void>;
     static runComponentDetection(path: string): Promise<void>;
     private static getComponentDetectionParameters;
-    static getManifestsFromResults(filePathInput?: string): Promise<Manifest[] | undefined>;
+    static getManifestsFromResults(): Promise<Manifest[] | undefined>;
     static processComponentsToManifests(componentsFound: any[], dependencyGraphs: DependencyGraphs): Manifest[];
     private static createManifests;
     private static getDependencyScope;
@@ -14,12 +14,12 @@ export default class ComponentDetection {
     private static getLatestReleaseURL;
     private static fetchWithProxy;
     /**
-     * Normalizes the keys of a DependencyGraphs object to be relative paths from the resolved filePath input.
+     * Normalizes dependency graph paths relative to the repository workspace.
      * @param dependencyGraphs The DependencyGraphs object to normalize.
-     * @param filePathInput The filePath input (relative or absolute) from the action configuration.
+     * @param repositoryRoot The repository workspace path.
      * @returns A new DependencyGraphs object with relative path keys.
      */
-    static normalizeDependencyGraphPaths(dependencyGraphs: DependencyGraphs, filePathInput: string): DependencyGraphs;
+    static normalizeDependencyGraphPaths(dependencyGraphs: DependencyGraphs, repositoryRoot?: string): DependencyGraphs;
 }
 /**
  * Types for the dependencyGraphs section of output.json

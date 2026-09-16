@@ -402,52 +402,42 @@ describe("ComponentDetection.processComponentsToManifests", () => {
 });
 
 describe('normalizeDependencyGraphPaths', () => {
-  test('converts absolute paths to relative paths based on filePath input', () => {
-    // Simulate a repo at /repo and a scan root at /repo/packages
-    const fakeCwd = '/workspaces';
-    const filePathInput = 'my-super-cool-repo';
-    const absBase = '/workspaces/my-super-cool-repo';
+  test('converts absolute paths to paths relative to the repository root', () => {
+    const repositoryRoot = '/workspaces/my-super-cool-repo';
     const dependencyGraphs: DependencyGraphs = {
-      '/workspaces/my-super-cool-repo/a/package.json': {
+      '/workspaces/my-super-cool-repo/services/api/package.json': {
         graph: { 'foo': null },
         explicitlyReferencedComponentIds: [],
         developmentDependencies: [],
         dependencies: []
       },
-      '/workspaces/my-super-cool-repo/b/package.json': {
+      '/workspaces/my-super-cool-repo/services/api/package-lock.json': {
         graph: { 'bar': null },
         explicitlyReferencedComponentIds: [],
         developmentDependencies: [],
         dependencies: []
       }
     };
-    // Patch process.cwd for this test
-    const originalCwd = process.cwd;
-    (process as any).cwd = () => fakeCwd;
-    const normalized = ComponentDetection.normalizeDependencyGraphPaths(dependencyGraphs, filePathInput);
-    // Restore process.cwd
-    (process as any).cwd = originalCwd;
-    expect(Object.keys(normalized)).toContain('a/package.json');
-    expect(Object.keys(normalized)).toContain('b/package.json');
-    expect(normalized['a/package.json'].graph).toEqual({ 'foo': null });
-    expect(normalized['b/package.json'].graph).toEqual({ 'bar': null });
+    const normalized = ComponentDetection.normalizeDependencyGraphPaths(dependencyGraphs, repositoryRoot);
+
+    expect(Object.keys(normalized)).toContain('services/api/package.json');
+    expect(Object.keys(normalized)).toContain('services/api/package-lock.json');
+    expect(normalized['services/api/package.json'].graph).toEqual({ 'foo': null });
+    expect(normalized['services/api/package-lock.json'].graph).toEqual({ 'bar': null });
   });
 });
 
 describe('normalizeDependencyGraphPaths with real output.json', () => {
-  test('converts absolute paths in output.json to relative paths using current cwd and filePath', () => {
+  test('converts absolute paths in output.json to repository-relative paths', () => {
     const output = JSON.parse(fs.readFileSync('./output.json', 'utf8'));
     const dependencyGraphs = output.dependencyGraphs;
-    // Use the same filePath as the action default (".")
-    const normalized = ComponentDetection.normalizeDependencyGraphPaths(dependencyGraphs, 'test');
+    const normalized = ComponentDetection.normalizeDependencyGraphPaths(dependencyGraphs, process.cwd());
 
-    // Should contain root level manifests without leading slashes
-    expect(Object.keys(normalized)).toContain('package.json');
-    expect(Object.keys(normalized)).toContain('package-lock.json');
+    expect(Object.keys(normalized)).toContain('test/package.json');
+    expect(Object.keys(normalized)).toContain('test/package-lock.json');
 
-    // Should contain nested manifests with relative paths (no leading slashes)
-    expect(Object.keys(normalized)).toContain('nested/package.json');
-    expect(Object.keys(normalized)).toContain('nested/package-lock.json');
+    expect(Object.keys(normalized)).toContain('test/nested/package.json');
+    expect(Object.keys(normalized)).toContain('test/nested/package-lock.json');
 
     // All keys should be relative paths without leading slashes
     for (const key of Object.keys(normalized)) {
@@ -469,10 +459,10 @@ test('full action scan creates manifests with correct names and file source loca
   }
 
   const expectedManifestNames = [
-    'package.json',
-    'package-lock.json',
-    'nested/package.json',
-    'nested/package-lock.json',
+    'test/package.json',
+    'test/package-lock.json',
+    'test/nested/package.json',
+    'test/nested/package-lock.json',
   ];
 
   const manifestsByName = manifests!.reduce((acc, manifest) => {

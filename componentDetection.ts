@@ -31,7 +31,7 @@ export default class ComponentDetection {
   static async scanAndGetManifests(path: string): Promise<Manifest[] | undefined> {
     await this.downloadLatestRelease();
     await this.runComponentDetection(path);
-    return await this.getManifestsFromResults(path);
+    return await this.getManifestsFromResults();
   }
   // Get the latest release from the component-detection repo, download the tarball, and extract it
   public static async downloadLatestRelease() {
@@ -71,13 +71,11 @@ export default class ComponentDetection {
     return parameters;
   }
 
-  public static async getManifestsFromResults(
-    filePathInput: string = core.getInput('filePath')
-  ): Promise<Manifest[] | undefined> {
+  public static async getManifestsFromResults(): Promise<Manifest[] | undefined> {
     core.info("Getting manifests from results");
     const results = await fs.readFileSync(this.outputPath, 'utf8');
     var json: any = JSON.parse(results);
-    let dependencyGraphs: DependencyGraphs = this.normalizeDependencyGraphPaths(json.dependencyGraphs, filePathInput);
+    let dependencyGraphs: DependencyGraphs = this.normalizeDependencyGraphPaths(json.dependencyGraphs);
     return this.processComponentsToManifests(json.componentsFound, dependencyGraphs);
   }
 
@@ -272,20 +270,18 @@ export default class ComponentDetection {
   }
 
   /**
-   * Normalizes the keys of a DependencyGraphs object to be relative paths from the resolved filePath input.
+   * Normalizes dependency graph paths relative to the repository workspace.
    * @param dependencyGraphs The DependencyGraphs object to normalize.
-   * @param filePathInput The filePath input (relative or absolute) from the action configuration.
+   * @param repositoryRoot The repository workspace path.
    * @returns A new DependencyGraphs object with relative path keys.
    */
   public static normalizeDependencyGraphPaths(
     dependencyGraphs: DependencyGraphs,
-    filePathInput: string
+    repositoryRoot: string = process.env.GITHUB_WORKSPACE || process.cwd()
   ): DependencyGraphs {
-    // Resolve the base directory from filePathInput (relative to cwd if not absolute)
-    const baseDir = path.resolve(process.cwd(), filePathInput);
+    const baseDir = path.resolve(repositoryRoot);
     const normalized: DependencyGraphs = {};
     for (const absPath in dependencyGraphs) {
-      // Make the path relative to the baseDir
       let relPath = path.relative(baseDir, absPath).replace(/\\/g, '/');
       normalized[relPath] = dependencyGraphs[absPath];
     }
@@ -328,7 +324,6 @@ export type DependencyGraph = {
  * The top-level dependencyGraphs object: keys are manifest file paths, values are DependencyGraph objects
  */
 export type DependencyGraphs = Record<string, DependencyGraph>;
-
 
 
 
