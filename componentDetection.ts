@@ -2,7 +2,6 @@ import * as github from '@actions/github'
 import * as core from '@actions/core'
 import { Octokit } from "octokit"
 import {
-  PackageCache,
   BuildTarget,
   Package,
   Snapshot,
@@ -32,7 +31,7 @@ export default class ComponentDetection {
   static async scanAndGetManifests(path: string): Promise<Manifest[] | undefined> {
     await this.downloadLatestRelease();
     await this.runComponentDetection(path);
-    return await this.getManifestsFromResults();
+    return await this.getManifestsFromResults(path);
   }
   // Get the latest release from the component-detection repo, download the tarball, and extract it
   public static async downloadLatestRelease() {
@@ -72,20 +71,20 @@ export default class ComponentDetection {
     return parameters;
   }
 
-  public static async getManifestsFromResults(): Promise<Manifest[] | undefined> {
+  public static async getManifestsFromResults(
+    filePathInput: string = core.getInput('filePath')
+  ): Promise<Manifest[] | undefined> {
     core.info("Getting manifests from results");
     const results = await fs.readFileSync(this.outputPath, 'utf8');
     var json: any = JSON.parse(results);
-    let dependencyGraphs: DependencyGraphs = this.normalizeDependencyGraphPaths(json.dependencyGraphs, core.getInput('filePath'));
+    let dependencyGraphs: DependencyGraphs = this.normalizeDependencyGraphPaths(json.dependencyGraphs, filePathInput);
     return this.processComponentsToManifests(json.componentsFound, dependencyGraphs);
   }
 
   public static processComponentsToManifests(componentsFound: any[], dependencyGraphs: DependencyGraphs): Manifest[] {
-    // Parse the result file and add the packages to the package cache
-    const packageCache = new PackageCache();
-    const packages: Array<ComponentDetectionPackage> = [];
+    const packagesById: Map<string, ComponentDetectionPackage> = new Map();
 
-    componentsFound.forEach(async (component: any) => {
+    componentsFound.forEach((component: any) => {
       // Skip components without packageUrl
       if (!component.component.packageUrl) {
         core.debug(`Skipping component detected without packageUrl: ${JSON.stringify({
@@ -104,97 +103,85 @@ export default class ComponentDetection {
         return;
       }
 
-      if (!packageCache.hasPackage(packageUrl)) {
-        const pkg = new ComponentDetectionPackage(packageUrl, component.component.id,
-          component.isDevelopmentDependency, component.topLevelReferrers, component.locationsFoundAt, component.containerDetailIds, component.containerLayerIds);
-        packageCache.addPackage(pkg);
-        packages.push(pkg);
+      packagesById.set(
+        component.component.id,
+        new ComponentDetectionPackage(
+          packageUrl,
+          component.component.id,
+          component.isDevelopmentDependency
+        )
+      );
+    });
+
+    return this.createManifests(packagesById, dependencyGraphs);
+  }
+
+  private static createManifests(
+    packageDefinitionsById: Map<string, ComponentDetectionPackage>,
+    dependencyGraphs: DependencyGraphs
+  ): Manifest[] {
+    return Object.entries(dependencyGraphs).map(([location, dependencyGraph]) => {
+      const manifest = new Manifest(location, location);
+      const manifestPackagesById: Map<string, ComponentDetectionPackage> = new Map();
+
+      for (const componentId of Object.keys(dependencyGraph.graph)) {
+        const packageDefinition = packageDefinitionsById.get(componentId);
+        if (!packageDefinition) {
+          core.warning(`No package found for component in dependency graph ${location}: ${componentId}`);
+          continue;
+        }
+
+        manifestPackagesById.set(
+          componentId,
+          new ComponentDetectionPackage(
+            packageDefinition.packageUrlString,
+            packageDefinition.id,
+            packageDefinition.isDevelopmentDependency
+          )
+        );
       }
-    });
 
-    // Set the transitive dependencies
-    core.debug("Sorting out transitive dependencies");
-    packages.forEach(async (pkg: ComponentDetectionPackage) => {
-      pkg.topLevelReferrers.forEach(async (referrer: any) => {
-        // Skip if referrer doesn't have a valid packageUrl
-        if (!referrer.packageUrl) {
-          core.debug(`Skipping referrer without packageUrl for component: ${pkg.id}`);
-          return;
+      for (const [componentId, dependencyIds] of Object.entries(dependencyGraph.graph)) {
+        const pkg = manifestPackagesById.get(componentId);
+        if (!pkg || !dependencyIds) {
+          continue;
         }
 
-        const referrerUrl = ComponentDetection.makePackageUrl(referrer.packageUrl);
-        referrer.packageUrlString = referrerUrl
-
-        // Skip if the generated packageUrl is empty
-        if (!referrerUrl) {
-          core.debug(`Skipping referrer with invalid packageUrl for component: ${pkg.id}`);
-          return;
-        }
-
-        try {
-          const referrerPackage = packageCache.lookupPackage(referrerUrl);
-          if (referrerPackage === pkg) {
-            core.debug(`Skipping self-reference for package: ${pkg.id}`);
-            return; // Skip self-references
+        for (const dependencyId of dependencyIds) {
+          const dependency = manifestPackagesById.get(dependencyId);
+          if (dependency && dependency !== pkg) {
+            pkg.dependsOn(dependency);
           }
-          if (referrerPackage) {
-            referrerPackage.dependsOn(pkg);
-          }
-        } catch (error) {
-          core.debug(`Error looking up referrer package: ${error}`);
         }
-      });
-    });
+      }
 
-    // Create manifests
-    const manifests: Array<Manifest> = [];
-
-    // Check the locationsFoundAt for every package and add each as a manifest
-    this.addPackagesToManifests(packages, manifests, dependencyGraphs);
-
-    return manifests;
-  }
-
-  private static addPackagesToManifests(packages: Array<ComponentDetectionPackage>, manifests: Array<Manifest>, dependencyGraphs: DependencyGraphs): void {
-    packages.forEach((pkg: ComponentDetectionPackage) => {
-      pkg.locationsFoundAt.forEach((location: any) => {
-        // Use the normalized path (remove leading slash if present)
-        let normalizedLocation = location.startsWith('/') ? location.substring(1) : location;
-        // Unescape the path, as upstream ComponentDetection emits locationsFoundAt in URL-encoded form
-        normalizedLocation = decodeURIComponent(normalizedLocation);
-
-        if (!manifests.find((manifest: Manifest) => manifest.name == normalizedLocation)) {
-          const manifest = new Manifest(normalizedLocation, normalizedLocation);
-          manifests.push(manifest);
-        }
-
-        const depGraphEntry = dependencyGraphs[normalizedLocation];
-        if (!depGraphEntry) {
-          core.warning(`No dependency graph entry found for manifest location: ${normalizedLocation}`);
-          return; // Skip this location if not found in dependencyGraphs
-        }
-
-        const directDependencies = depGraphEntry.explicitlyReferencedComponentIds;
-        if (directDependencies.includes(pkg.id)) {
-          manifests
-            .find((manifest: Manifest) => manifest.name == normalizedLocation)
-            ?.addDirectDependency(
-              pkg,
-              ComponentDetection.getDependencyScope(pkg)
-            );
+      const directDependencies = new Set(dependencyGraph.explicitlyReferencedComponentIds);
+      for (const [componentId, pkg] of manifestPackagesById) {
+        const scope = ComponentDetection.getDependencyScope(pkg, componentId, dependencyGraph);
+        if (directDependencies.has(componentId)) {
+          manifest.addDirectDependency(pkg, scope);
         } else {
-          manifests
-            .find((manifest: Manifest) => manifest.name == normalizedLocation)
-            ?.addIndirectDependency(
-              pkg,
-              ComponentDetection.getDependencyScope(pkg)
-            );
+          manifest.addIndirectDependency(pkg, scope);
         }
-      });
+      }
+
+      return manifest;
     });
   }
 
-  private static getDependencyScope(pkg: ComponentDetectionPackage) {
+  private static getDependencyScope(
+    pkg: ComponentDetectionPackage,
+    componentId: string,
+    dependencyGraph: DependencyGraph
+  ) {
+    if (dependencyGraph.dependencies.includes(componentId)) {
+      return 'runtime';
+    }
+
+    if (dependencyGraph.developmentDependencies.includes(componentId)) {
+      return 'development';
+    }
+
     return pkg.isDevelopmentDependency ? 'development' : 'runtime'
   }
 
@@ -309,8 +296,7 @@ export default class ComponentDetection {
 class ComponentDetectionPackage extends Package {
   public packageUrlString: string;
 
-  constructor(packageUrl: string, public id: string, public isDevelopmentDependency: boolean, public topLevelReferrers: [],
-    public locationsFoundAt: [], public containerDetailIds: [], public containerLayerIds: []) {
+  constructor(packageUrl: string, public id: string, public isDevelopmentDependency: boolean) {
     super(packageUrl);
     this.packageUrlString = packageUrl;
   }
@@ -342,10 +328,6 @@ export type DependencyGraph = {
  * The top-level dependencyGraphs object: keys are manifest file paths, values are DependencyGraph objects
  */
 export type DependencyGraphs = Record<string, DependencyGraph>;
-
-
-
-
 
 
 
