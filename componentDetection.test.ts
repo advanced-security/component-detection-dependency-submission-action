@@ -16,7 +16,15 @@ test("Parses CLI output", async () => {
   await ComponentDetection.downloadLatestRelease();
   await ComponentDetection.runComponentDetection("./test");
   var manifests = await ComponentDetection.getManifestsFromResults();
-  expect(manifests?.length).toBe(4);
+  expect(manifests?.map(manifest => manifest.name).sort()).toEqual([
+    "test/go/go.mod",
+    "test/nested/package-lock.json",
+    "test/nested/package.json",
+    "test/nuget/packages.config",
+    "test/package-lock.json",
+    "test/package.json",
+    "test/ruby/Gemfile.lock"
+  ]);
 });
 
 describe("ComponentDetection.makePackageUrl", () => {
@@ -463,6 +471,9 @@ test('full action scan creates manifests with correct names and file source loca
     'test/package-lock.json',
     'test/nested/package.json',
     'test/nested/package-lock.json',
+    'test/nuget/packages.config',
+    'test/go/go.mod',
+    'test/ruby/Gemfile.lock',
   ];
 
   const manifestsByName = manifests!.reduce((acc, manifest) => {
@@ -476,4 +487,38 @@ test('full action scan creates manifests with correct names and file source loca
     expect(manifest.name).toBe(expectedName);
     expect(manifest.file?.source_location).toBe(expectedName);
   }
+
+  const expectedDependencies = [
+    {
+      manifest: 'test/nuget/packages.config',
+      packageUrl: 'pkg:nuget/Newtonsoft.Json@13.0.4',
+      relationship: 'direct'
+    },
+    {
+      manifest: 'test/go/go.mod',
+      packageUrl: 'pkg:golang/github.com/google/uuid@v1.6.0',
+      // The stable Go detector currently leaves explicitlyReferencedComponentIds empty.
+      relationship: 'indirect'
+    },
+    {
+      manifest: 'test/ruby/Gemfile.lock',
+      packageUrl: 'pkg:gem/rake@13.2.1',
+      relationship: 'direct'
+    }
+  ];
+
+  for (const expected of expectedDependencies) {
+    const manifest = manifestsByName[expected.manifest];
+    const dependencies = expected.relationship === 'direct'
+      ? manifest.directDependencies()
+      : manifest.indirectDependencies();
+    const dependency = dependencies
+      .find((pkg: any) => pkg.packageID() === expected.packageUrl);
+
+    expect(dependency).toBeDefined();
+  }
+
+  expect(manifestsByName['test/nuget/packages.config'].countDependencies()).toBe(1);
+  expect(manifestsByName['test/go/go.mod'].countDependencies()).toBe(1);
+  expect(manifestsByName['test/ruby/Gemfile.lock'].countDependencies()).toBe(2);
 });
