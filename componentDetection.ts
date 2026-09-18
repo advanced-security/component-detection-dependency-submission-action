@@ -118,7 +118,9 @@ export default class ComponentDetection {
     packageDefinitionsById: Map<string, ComponentDetectionPackage>,
     dependencyGraphs: DependencyGraphs
   ): Manifest[] {
-    return Object.entries(dependencyGraphs).map(([location, dependencyGraph]) => {
+    return Object.entries(dependencyGraphs)
+      .filter(([location]) => !ComponentDetection.isInstalledNpmManifest(location))
+      .map(([location, dependencyGraph]) => {
       const manifest = new Manifest(location, location);
       const manifestPackagesById: Map<string, ComponentDetectionPackage> = new Map();
 
@@ -165,6 +167,10 @@ export default class ComponentDetection {
 
       return manifest;
     });
+  }
+
+  private static isInstalledNpmManifest(location: string): boolean {
+    return location.replace(/\\/g, '/').split('/').includes('node_modules');
   }
 
   private static getDependencyScope(
@@ -324,7 +330,6 @@ export type DependencyGraph = {
  * The top-level dependencyGraphs object: keys are manifest file paths, values are DependencyGraph objects
  */
 export type DependencyGraphs = Record<string, DependencyGraph>;
-
 
 
 

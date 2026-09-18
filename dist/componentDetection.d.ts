@@ -9,6 +9,7 @@ export default class ComponentDetection {
     static getManifestsFromResults(): Promise<Manifest[] | undefined>;
     static processComponentsToManifests(componentsFound: any[], dependencyGraphs: DependencyGraphs): Manifest[];
     private static createManifests;
+    private static isInstalledNpmManifest;
     private static getDependencyScope;
     static makePackageUrl(packageUrlJson: any): string;
     private static getLatestReleaseURL;

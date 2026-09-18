@@ -183986,7 +183986,9 @@ class ComponentDetection {
         return this.createManifests(packagesById, dependencyGraphs);
     }
     static createManifests(packageDefinitionsById, dependencyGraphs) {
-        return Object.entries(dependencyGraphs).map(([location, dependencyGraph]) => {
+        return Object.entries(dependencyGraphs)
+            .filter(([location]) => !ComponentDetection.isInstalledNpmManifest(location))
+            .map(([location, dependencyGraph]) => {
             const manifest = new g(location, location);
             const manifestPackagesById = new Map();
             for (const componentId of Object.keys(dependencyGraph.graph)) {
@@ -184021,6 +184023,9 @@ class ComponentDetection {
             }
             return manifest;
         });
+    }
+    static isInstalledNpmManifest(location) {
+        return location.replace(/\\/g, '/').split('/').includes('node_modules');
     }
     static getDependencyScope(pkg, componentId, dependencyGraph) {
         if (dependencyGraph.dependencies.includes(componentId)) {

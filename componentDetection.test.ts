@@ -256,7 +256,19 @@ describe("ComponentDetection.processComponentsToManifests", () => {
       "package.json": rootGraph,
       "package-lock.json": rootGraph,
       "frontend/package.json": frontendGraph,
-      "frontend/package-lock.json": frontendGraph
+      "frontend/package-lock.json": frontendGraph,
+      "node_modules/express/package.json": {
+        graph: { "express 4.18.2 - npm": null },
+        explicitlyReferencedComponentIds: [],
+        developmentDependencies: [],
+        dependencies: []
+      },
+      "frontend/node_modules/@scope/frontend/package.json": {
+        graph: { "@scope/frontend 2.0.0 - npm": null },
+        explicitlyReferencedComponentIds: [],
+        developmentDependencies: [],
+        dependencies: []
+      }
     };
 
     const manifests = ComponentDetection.processComponentsToManifests(componentsFound, dependencyGraphs);
@@ -456,11 +468,25 @@ describe('normalizeDependencyGraphPaths with real output.json', () => {
 });
 
 test('full action scan creates manifests with correct names and file source locations', async () => {
-  await ComponentDetection.downloadLatestRelease();
-  const manifests = await ComponentDetection.scanAndGetManifests('./test');
+  const generatedFixtureDirectory = './test/generated-integration-fixture';
+  const installedPackageDirectory = `${generatedFixtureDirectory}/node_modules/installed-only`;
+  fs.mkdirSync(installedPackageDirectory, { recursive: true });
+  fs.writeFileSync(
+    `${installedPackageDirectory}/package.json`,
+    JSON.stringify({ name: 'installed-only', version: '1.0.0' })
+  );
+
+  let manifests;
+  try {
+    await ComponentDetection.downloadLatestRelease();
+    manifests = await ComponentDetection.scanAndGetManifests('./test');
+  } finally {
+    fs.rmSync(generatedFixtureDirectory, { recursive: true, force: true });
+  }
 
   expect(manifests).toBeDefined();
   expect(manifests!.length).toBeGreaterThan(0);
+  expect(manifests!.some(manifest => manifest.name.split('/').includes('node_modules'))).toBe(false);
 
   for (const manifest of manifests!) {
     expect(manifest.name.startsWith('/')).toBe(false);
