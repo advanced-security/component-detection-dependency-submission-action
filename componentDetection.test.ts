@@ -300,6 +300,64 @@ describe("ComponentDetection.processComponentsToManifests", () => {
     ]);
   });
 
+  test("filters exact node_modules path segments across path separators", () => {
+    const componentsFound = [
+      {
+        component: {
+          packageUrl: {
+            Scheme: "pkg",
+            Type: "npm",
+            Name: "installed-package",
+            Version: "1.0.0"
+          },
+          id: "installed-package 1.0.0 - npm"
+        },
+        isDevelopmentDependency: false,
+        topLevelReferrers: [],
+        locationsFoundAt: ["node_modules/installed-package/package.json"]
+      },
+      {
+        component: {
+          packageUrl: {
+            Scheme: "pkg",
+            Type: "npm",
+            Name: "source-package",
+            Version: "1.0.0"
+          },
+          id: "source-package 1.0.0 - npm"
+        },
+        isDevelopmentDependency: false,
+        topLevelReferrers: [],
+        locationsFoundAt: ["tools/node_modules-cache/package.json"]
+      }
+    ];
+    const installedGraph: DependencyGraph = {
+      graph: { "installed-package 1.0.0 - npm": null },
+      explicitlyReferencedComponentIds: [],
+      developmentDependencies: [],
+      dependencies: []
+    };
+    const sourceGraph: DependencyGraph = {
+      graph: { "source-package 1.0.0 - npm": null },
+      explicitlyReferencedComponentIds: ["source-package 1.0.0 - npm"],
+      developmentDependencies: [],
+      dependencies: ["source-package 1.0.0 - npm"]
+    };
+    const dependencyGraphs: DependencyGraphs = {
+      "node_modules/installed-package/package.json": installedGraph,
+      "frontend\\node_modules\\installed-package\\package.json": installedGraph,
+      "tools/node_modules-cache/package.json": sourceGraph,
+      "tools/node_modules.json": sourceGraph
+    };
+
+    const manifests = ComponentDetection.processComponentsToManifests(componentsFound, dependencyGraphs);
+
+    expect(manifests.map(manifest => manifest.name)).toEqual([
+      "tools/node_modules-cache/package.json",
+      "tools/node_modules.json"
+    ]);
+  });
+
   test("keeps dependency edges and scopes isolated to each source manifest", () => {
     const componentsFound = [
       {
@@ -360,7 +418,7 @@ describe("ComponentDetection.processComponentsToManifests", () => {
           "shared-parent 1.0.0 - npm": ["nested-child 1.0.0 - npm"],
           "nested-child 1.0.0 - npm": null
         },
-        explicitlyReferencedComponentIds: ["shared-parent 1.0.0 - npm"],
+        explicitlyReferencedComponentIds: [],
         developmentDependencies: ["shared-parent 1.0.0 - npm", "nested-child 1.0.0 - npm"],
         dependencies: []
       }
@@ -370,7 +428,8 @@ describe("ComponentDetection.processComponentsToManifests", () => {
     const rootManifest = manifests.find(manifest => manifest.name === "package-lock.json")!;
     const nestedManifest = manifests.find(manifest => manifest.name === "nested/package-lock.json")!;
     const rootParent = rootManifest.directDependencies()[0];
-    const nestedParent = nestedManifest.directDependencies()[0];
+    const nestedParent = nestedManifest.indirectDependencies()
+      .find(pkg => pkg.packageID() === "pkg:npm/shared-parent@1.0.0")!;
 
     expect(rootParent.dependencies.map(dependency => dependency.packageID())).toEqual([
       "pkg:npm/root-child@1.0.0"
@@ -378,6 +437,8 @@ describe("ComponentDetection.processComponentsToManifests", () => {
     expect(nestedParent.dependencies.map(dependency => dependency.packageID())).toEqual([
       "pkg:npm/nested-child@1.0.0"
     ]);
+    expect(rootManifest.directDependencies()).toHaveLength(1);
+    expect(nestedManifest.directDependencies()).toHaveLength(0);
     expect(rootManifest.lookupDependency(rootParent)?.scope).toBe("runtime");
     expect(nestedManifest.lookupDependency(nestedParent)?.scope).toBe("development");
   });
