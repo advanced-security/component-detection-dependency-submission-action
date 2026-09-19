@@ -382,6 +382,68 @@ describe("ComponentDetection.processComponentsToManifests", () => {
     expect(nestedManifest.lookupDependency(nestedParent)?.scope).toBe("development");
   });
 
+  test("preserves NuGet package relationships when an SDK graph node is excluded", () => {
+    const componentsFound = [
+      {
+        component: {
+          packageUrl: {
+            Scheme: "pkg",
+            Type: "nuget",
+            Name: "Serilog.Sinks.Console",
+            Version: "6.0.0"
+          },
+          id: "Serilog.Sinks.Console 6.0.0 - NuGet"
+        },
+        isDevelopmentDependency: false,
+        topLevelReferrers: [],
+        locationsFoundAt: ["dotnet/obj/project.assets.json"]
+      },
+      {
+        component: {
+          packageUrl: {
+            Scheme: "pkg",
+            Type: "nuget",
+            Name: "Serilog",
+            Version: "4.0.0"
+          },
+          id: "Serilog 4.0.0 - NuGet"
+        },
+        isDevelopmentDependency: false,
+        topLevelReferrers: [],
+        locationsFoundAt: ["dotnet/obj/project.assets.json"]
+      }
+    ];
+    const dependencyGraphs: DependencyGraphs = {
+      "dotnet/ComponentDetectionTest.csproj": {
+        graph: {
+          "10.0.400 net8.0 unknown - DotNet": ["Serilog.Sinks.Console 6.0.0 - NuGet"],
+          "Serilog.Sinks.Console 6.0.0 - NuGet": ["Serilog 4.0.0 - NuGet"],
+          "Serilog 4.0.0 - NuGet": null
+        },
+        explicitlyReferencedComponentIds: ["Serilog.Sinks.Console 6.0.0 - NuGet"],
+        developmentDependencies: [],
+        dependencies: [
+          "Serilog.Sinks.Console 6.0.0 - NuGet",
+          "Serilog 4.0.0 - NuGet"
+        ]
+      }
+    };
+
+    const manifests = ComponentDetection.processComponentsToManifests(componentsFound, dependencyGraphs);
+    const manifest = manifests[0];
+    const direct = manifest.directDependencies()[0];
+    const transitive = manifest.indirectDependencies()[0];
+
+    expect(manifests).toHaveLength(1);
+    expect(manifest.name).toBe("dotnet/ComponentDetectionTest.csproj");
+    expect(manifest.countDependencies()).toBe(2);
+    expect(direct.packageID()).toBe("pkg:nuget/Serilog.Sinks.Console@6.0.0");
+    expect(transitive.packageID()).toBe("pkg:nuget/Serilog@4.0.0");
+    expect(direct.dependencies.map(dependency => dependency.packageID())).toEqual([
+      "pkg:nuget/Serilog@4.0.0"
+    ]);
+  });
+
   test("uses the dependency graph path when the component location differs", () => {
     const componentsFound = [
       {
