@@ -443,7 +443,7 @@ describe("ComponentDetection.processComponentsToManifests", () => {
     expect(nestedManifest.lookupDependency(nestedParent)?.scope).toBe("development");
   });
 
-  test("preserves NuGet package relationships when an SDK graph node is excluded", () => {
+  test("excludes .NET SDK nodes while preserving actionable NuGet relationships", () => {
     const componentsFound = [
       {
         component: {
@@ -498,6 +498,14 @@ describe("ComponentDetection.processComponentsToManifests", () => {
     expect(manifests).toHaveLength(1);
     expect(manifest.name).toBe("dotnet/ComponentDetectionTest.csproj");
     expect(manifest.countDependencies()).toBe(2);
+    expect(
+      [...manifest.directDependencies(), ...manifest.indirectDependencies()]
+        .map(pkg => pkg.packageID())
+        .sort()
+    ).toEqual([
+      "pkg:nuget/Serilog.Sinks.Console@6.0.0",
+      "pkg:nuget/Serilog@4.0.0"
+    ]);
     expect(direct.packageID()).toBe("pkg:nuget/Serilog.Sinks.Console@6.0.0");
     expect(transitive.packageID()).toBe("pkg:nuget/Serilog@4.0.0");
     expect(direct.dependencies.map(dependency => dependency.packageID())).toEqual([
