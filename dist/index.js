@@ -183918,34 +183918,25 @@ class ComponentDetection {
     // This is the default entry point for this class.
     static async scanAndGetManifests(path) {
         await this.downloadLatestRelease();
+        external_fs_default().rmSync(this.outputPath, { force: true });
         await this.runComponentDetection(path);
         return await this.getManifestsFromResults();
     }
     // Get the latest release from the component-detection repo, download the tarball, and extract it
     static async downloadLatestRelease() {
-        try {
-            core_debug(`Downloading latest release for ${process.platform}`);
-            const downloadURL = await this.getLatestReleaseURL();
-            const blob = await (await this.fetchWithProxy(new URL(downloadURL))).blob();
-            const arrayBuffer = await blob.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
-            // Write the blob to a file
-            core_debug(`Writing binary to file ${this.componentDetectionPath}`);
-            await external_fs_default().writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
-        }
-        catch (error) {
-            core_error(error);
-        }
+        core_debug(`Downloading latest release for ${process.platform}`);
+        const downloadURL = await this.getLatestReleaseURL();
+        const blob = await (await this.fetchWithProxy(new URL(downloadURL))).blob();
+        const arrayBuffer = await blob.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        // Write the blob to a file
+        core_debug(`Writing binary to file ${this.componentDetectionPath}`);
+        await external_fs_default().writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
     }
     // Run the component-detection CLI on the path specified
     static async runComponentDetection(path) {
         info("Running component-detection");
-        try {
-            await exec_exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`);
-        }
-        catch (error) {
-            core_error(error);
-        }
+        await exec_exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`);
     }
     static getComponentDetectionParameters() {
         var parameters = "";
@@ -184203,6 +184194,9 @@ async function retrySnapshotSubmission(submit, warn, wait = delay) {
 
 async function run() {
     let manifests = await ComponentDetection.scanAndGetManifests(getInput("filePath"));
+    if (getBooleanInput("fail-on-empty") && !manifests?.length) {
+        throw new Error("Component Detection found no dependency manifests to submit.");
+    }
     const correlatorInput = getInput("correlator")?.trim() || github_context.job;
     // Get detector configuration inputs
     const detectorName = getInput("detector-name")?.trim();

@@ -17,6 +17,9 @@ async function run() {
   let manifests = await ComponentDetection.scanAndGetManifests(
     core.getInput("filePath")
   );
+  if (core.getBooleanInput("fail-on-empty") && !manifests?.length) {
+    throw new Error("Component Detection found no dependency manifests to submit.");
+  }
   const correlatorInput =
     core.getInput("correlator")?.trim() || github.context.job;
 

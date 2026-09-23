@@ -9,6 +9,10 @@ inputs:
     description: 'The path to the directory containing the environment files to upload. Defaults to Actions working directory.'
     required: false
     default: '.'
+  fail-on-empty:
+    description: 'Fail without submitting a snapshot when no dependency manifests are found. Enable only when the scanned project is expected to have dependencies.'
+    required: false
+    default: 'false'
   directoryExclusionList:
     description: 'Filters out specific directories following a minimatch pattern.'
     required: false

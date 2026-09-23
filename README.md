@@ -57,6 +57,7 @@ jobs:
 | Parameter | Description | Example |
 | --- | --- | --- |
 filePath | The path to the directory containing the environment files to upload. Defaults to Actions working directory. | `'.'`
+fail-on-empty | Fail before submitting if the scan found no dependency manifests. Defaults to `false`; set to `true` only when the scanned project is expected to have dependencies. | `'true'`
 directoryExclusionList | Filters out specific directories following a minimatch pattern. | `test`
 detectorArgs | Comma separated list of properties that can affect the detectors execution, like EnableIfDefaultOff that allows a specific detector that is `Experimental` or `DefaultOff` to run, the format for this property is DetectorId=EnableIfDefaultOff, for example Pip=EnableIfDefaultOff. | `Pip=EnableIfDefaultOff`
 dockerImagesToScan |Comma separated list of docker image names or hashes to execute container scanning on |  ubuntu:16.04,56bab49eef2ef07505f6a1b0d5bd3a601dfc3c76ad4460f24c91d6fa298369ab |

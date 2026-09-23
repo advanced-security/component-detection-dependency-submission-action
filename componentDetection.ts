@@ -31,35 +31,27 @@ export default class ComponentDetection {
   // This is the default entry point for this class.
   static async scanAndGetManifests(path: string): Promise<Manifest[] | undefined> {
     await this.downloadLatestRelease();
+    fs.rmSync(this.outputPath, { force: true });
     await this.runComponentDetection(path);
     return await this.getManifestsFromResults();
   }
   // Get the latest release from the component-detection repo, download the tarball, and extract it
   public static async downloadLatestRelease() {
-    try {
-      core.debug(`Downloading latest release for ${process.platform}`);
-      const downloadURL = await this.getLatestReleaseURL();
-      const blob = await (await this.fetchWithProxy(new URL(downloadURL))).blob();
-      const arrayBuffer = await blob.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
+    core.debug(`Downloading latest release for ${process.platform}`);
+    const downloadURL = await this.getLatestReleaseURL();
+    const blob = await (await this.fetchWithProxy(new URL(downloadURL))).blob();
+    const arrayBuffer = await blob.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-      // Write the blob to a file
-      core.debug(`Writing binary to file ${this.componentDetectionPath}`);
-      await fs.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
-    } catch (error: any) {
-      core.error(error);
-    }
+    // Write the blob to a file
+    core.debug(`Writing binary to file ${this.componentDetectionPath}`);
+    await fs.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
   }
 
   // Run the component-detection CLI on the path specified
   public static async runComponentDetection(path: string) {
     core.info("Running component-detection");
-
-    try {
-      await exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`);
-    } catch (error: any) {
-      core.error(error);
-    }
+    await exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`);
   }
 
   private static getComponentDetectionParameters(): string {
@@ -342,9 +334,6 @@ export type DependencyGraph = {
  * The top-level dependencyGraphs object: keys are manifest file paths, values are DependencyGraph objects
  */
 export type DependencyGraphs = Record<string, DependencyGraph>;
-
-
-
 
 
 
