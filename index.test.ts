@@ -48,6 +48,16 @@ test("does not submit an empty snapshot when manifests are required", async () =
   expect(submitSnapshot).not.toHaveBeenCalled();
 });
 
+test("does not submit manifests that contain no dependencies when required", async () => {
+  process.env["INPUT_FAIL-ON-EMPTY"] = "true";
+  scanAndGetManifests.mockResolvedValue([{ countDependencies: () => 0 }]);
+
+  await runAction();
+
+  expect(process.exitCode).toBe(1);
+  expect(submitSnapshot).not.toHaveBeenCalled();
+});
+
 test("still submits an empty snapshot when non-empty results are not required", async () => {
   process.env["INPUT_FAIL-ON-EMPTY"] = "false";
 
@@ -59,7 +69,7 @@ test("still submits an empty snapshot when non-empty results are not required", 
 
 test("submits detected manifests when non-empty results are required", async () => {
   process.env["INPUT_FAIL-ON-EMPTY"] = "true";
-  scanAndGetManifests.mockResolvedValue([{}]);
+  scanAndGetManifests.mockResolvedValue([{ countDependencies: () => 1 }]);
 
   await runAction();
 

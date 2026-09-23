@@ -184194,8 +184194,9 @@ async function retrySnapshotSubmission(submit, warn, wait = delay) {
 
 async function run() {
     let manifests = await ComponentDetection.scanAndGetManifests(getInput("filePath"));
-    if (getBooleanInput("fail-on-empty") && !manifests?.length) {
-        throw new Error("Component Detection found no dependency manifests to submit.");
+    if (getBooleanInput("fail-on-empty") &&
+        !manifests?.some((manifest) => manifest.countDependencies() > 0)) {
+        throw new Error("Component Detection found no dependencies to submit.");
     }
     const correlatorInput = getInput("correlator")?.trim() || github_context.job;
     // Get detector configuration inputs

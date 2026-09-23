@@ -10,7 +10,7 @@ inputs:
     required: false
     default: '.'
   fail-on-empty:
-    description: 'Fail without submitting a snapshot when no dependency manifests are found. Enable only when the scanned project is expected to have dependencies.'
+    description: 'Fail without submitting a snapshot when no dependencies are found. Enable only when the scanned project is expected to have external dependencies.'
     required: false
     default: 'false'
   directoryExclusionList:
