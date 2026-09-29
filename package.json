@@ -37,7 +37,7 @@
     "fs": "^0.0.1-security",
     "octokit": "^5.0.5",
     "tar": "^7.5.22",
-    "undici": "^8.10.2",
+    "undici": "^8.11.0",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
