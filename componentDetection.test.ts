@@ -654,8 +654,7 @@ test('full action scan creates manifests with correct names and file source loca
     {
       manifest: 'test/go/go.mod',
       packageUrl: 'pkg:golang/github.com/google/uuid@v1.6.0',
-      // The stable Go detector currently leaves explicitlyReferencedComponentIds empty.
-      relationship: 'indirect'
+      relationship: 'direct'
     },
     {
       manifest: 'test/ruby/Gemfile.lock',
