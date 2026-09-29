@@ -169380,7 +169380,7 @@ class dist_src_RequestError extends Error {
 
 
 ;// CONCATENATED MODULE: ./node_modules/@github/dependency-submission-toolkit/dist/index.js
-var o=class{depPackage;relationship;scope;constructor(e,t,s){this.depPackage=e,t!==void 0&&(this.relationship=t),s!==void 0&&(this.scope=s);}toJSON(){return {package_url:this.depPackage.packageURL.toString(),relationship:this.relationship,scope:this.scope,dependencies:this.depPackage.packageDependencyIDs}}},g=class{resolved;name;file;constructor(e,t){this.resolved={},this.name=e,t&&(this.file={source_location:t});}addDirectDependency(e,t){this.resolved[e.packageID()]=new o(e,"direct",t);}addIndirectDependency(e,t){this.resolved[e.packageID()]??=new o(e,"indirect",t);}hasDependency(e){return this.lookupDependency(e)!==void 0}lookupDependency(e){return this.resolved[e.packageID()]}countDependencies(){return Object.keys(this.resolved).length}filterDependencies(e){return Object.values(this.resolved).reduce((t,s)=>(e(s)&&t.push(s.depPackage),t),[])}directDependencies(){return this.filterDependencies(e=>e.relationship==="direct")}indirectDependencies(){return this.filterDependencies(e=>e.relationship==="indirect")}},u=class extends (/* unused pure expression or super */ null && (g)){addBuildDependency(e){this.addDirectDependency(e,"runtime");for(let t of e.dependencies)this.addIndirectDependency(t,"runtime");}};var c=class{packageURL;dependencies;constructor(e){typeof e=="string"?this.packageURL=packageurl_js.PackageURL.fromString(e):this.packageURL=e,this.dependencies=[];}dependsOn(e){return this.dependencies.push(e),this}dependsOnPackages(e){for(let t of e)this.dependsOn(t);return this}get packageDependencyIDs(){return this.dependencies.map(e=>e.packageID())}packageID(){return this.packageURL.toString()}namespace(){return this.packageURL.namespace??null}name(){return this.packageURL.name}version(){return this.packageURL.version||""}matching(e){return (e.namespace===void 0||this.packageURL.namespace===e.namespace)&&(e.name===void 0||this.packageURL.name===e.name)&&(e.version===void 0||this.packageURL.version===e.version)}};var h=class{database;constructor(){this.database={};}package(e){let t=this.lookupPackage(e);if(t)return t;let s=new c(e);return this.addPackage(s),s}packagesMatching(e){return Object.values(this.database).filter(t=>t.matching(e))}addPackage(e){this.database[e.packageURL.toString()]=e;}removePackage(e){delete this.database[e.packageURL.toString()];}lookupPackage(e){if(typeof e=="string"){let t=packageurl_js.PackageURL.fromString(e);return this.database[t.toString()]}return this.database[e.toString()]}hasPackage(e){return this.lookupPackage(e)!==void 0}countPackages(){return Object.values(this.database).length}};function y(r){return {correlator:r.job,id:r.runId.toString()}}function P(r){return ["pull_request","pull_request_comment","pull_request_review","pull_request_review_comment"].includes(r.eventName)?r.payload.pull_request.head.sha:r.sha}var l=class{manifests;version;job;sha;ref;scanned;detector;constructor(e,t=github.context,s,p=new Date,n=0){this.detector=e,this.version=n,this.job=s||y(t),this.sha=P(t),this.ref=t.ref,this.scanned=p.toISOString(),this.manifests={};}addManifest(e){this.manifests[e.name]=e;}prettyJSON(){return JSON.stringify(this,void 0,4)}};async function L(r,e=github.context){core.setOutput("snapshot",JSON.stringify(r)),core.notice("Submitting snapshot..."),core.notice(r.prettyJSON());let t=e.repo,s=core.getInput("token")||await core.getIDToken(),p=github.getOctokit(s);try{let n=await p.request("POST /repos/{owner}/{repo}/dependency-graph/snapshots",{headers:{accept:"application/vnd.github.foo-bar-preview+json"},owner:t.owner,repo:t.repo,...r}),d=n.data.result;d==="SUCCESS"||d==="ACCEPTED"?core.notice(`Snapshot successfully created at ${n.data.created_at.toString()}`):core.error(`Snapshot creation failed with result: "${d}: ${n.data.message}"`);}catch(n){throw n instanceof dist_src_RequestError&&(core.error(`HTTP Status ${n.status} for request ${n.request.method} ${n.request.url}`),n.response&&core.error(`Response body:
+var o=class{depPackage;relationship;scope;constructor(e,t,s){this.depPackage=e,t!==void 0&&(this.relationship=t),s!==void 0&&(this.scope=s);}toJSON(){return {package_url:this.depPackage.packageURL.toString(),relationship:this.relationship,scope:this.scope,dependencies:this.depPackage.packageDependencyIDs}}},g=class{resolved;name;file;constructor(e,t){this.resolved={},this.name=e,t&&(this.file={source_location:t});}addDirectDependency(e,t){this.resolved[e.packageID()]=new o(e,"direct",t);}addIndirectDependency(e,t){this.resolved[e.packageID()]??=new o(e,"indirect",t);}hasDependency(e){return this.lookupDependency(e)!==void 0}lookupDependency(e){return this.resolved[e.packageID()]}countDependencies(){return Object.keys(this.resolved).length}filterDependencies(e){return Object.values(this.resolved).reduce((t,s)=>(e(s)&&t.push(s.depPackage),t),[])}directDependencies(){return this.filterDependencies(e=>e.relationship==="direct")}indirectDependencies(){return this.filterDependencies(e=>e.relationship==="indirect")}},u=class extends (/* unused pure expression or super */ null && (g)){addBuildDependency(e){this.addDirectDependency(e,"runtime");for(let t of e.dependencies)this.addIndirectDependency(t,"runtime");}};var c=class{packageURL;dependencies;constructor(e){typeof e=="string"?this.packageURL=packageurl_js.PackageURL.fromString(e):this.packageURL=e,this.dependencies=[];}dependsOn(e){return this.dependencies.push(e),this}dependsOnPackages(e){for(let t of e)this.dependsOn(t);return this}get packageDependencyIDs(){return this.dependencies.map(e=>e.packageID())}packageID(){return this.packageURL.toString()}namespace(){return this.packageURL.namespace??null}name(){return this.packageURL.name}version(){return this.packageURL.version||""}matching(e){return (e.namespace===void 0||this.packageURL.namespace===e.namespace)&&(e.name===void 0||this.packageURL.name===e.name)&&(e.version===void 0||this.packageURL.version===e.version)}};var h=class{database;constructor(){this.database={};}package(e){let t=this.lookupPackage(e);if(t)return t;let s=new c(e);return this.addPackage(s),s}packagesMatching(e){return Object.values(this.database).filter(t=>t.matching(e))}addPackage(e){this.database[e.packageURL.toString()]=e;}removePackage(e){delete this.database[e.packageURL.toString()];}lookupPackage(e){if(typeof e=="string"){let t=PackageURL.fromString(e);return this.database[t.toString()]}return this.database[e.toString()]}hasPackage(e){return this.lookupPackage(e)!==void 0}countPackages(){return Object.values(this.database).length}};function y(r){return {correlator:r.job,id:r.runId.toString()}}function P(r){return ["pull_request","pull_request_comment","pull_request_review","pull_request_review_comment"].includes(r.eventName)?r.payload.pull_request.head.sha:r.sha}var l=class{manifests;version;job;sha;ref;scanned;detector;constructor(e,t=github.context,s,p=new Date,n=0){this.detector=e,this.version=n,this.job=s||y(t),this.sha=P(t),this.ref=t.ref,this.scanned=p.toISOString(),this.manifests={};}addManifest(e){this.manifests[e.name]=e;}prettyJSON(){return JSON.stringify(this,void 0,4)}};async function L(r,e=github.context){core.setOutput("snapshot",JSON.stringify(r)),core.notice("Submitting snapshot..."),core.notice(r.prettyJSON());let t=e.repo,s=core.getInput("token")||await core.getIDToken(),p=github.getOctokit(s);try{let n=await p.request("POST /repos/{owner}/{repo}/dependency-graph/snapshots",{headers:{accept:"application/vnd.github.foo-bar-preview+json"},owner:t.owner,repo:t.repo,...r}),d=n.data.result;d==="SUCCESS"||d==="ACCEPTED"?core.notice(`Snapshot successfully created at ${n.data.created_at.toString()}`):core.error(`Snapshot creation failed with result: "${d}: ${n.data.message}"`);}catch(n){throw n instanceof dist_src_RequestError&&(core.error(`HTTP Status ${n.status} for request ${n.request.method} ${n.request.url}`),n.response&&core.error(`Response body:
 ${JSON.stringify(n.response.data,void 0,2)}`)),n instanceof Error&&(core.error(n.message),n.stack&&core.error(n.stack)),new Error(`Failed to submit snapshot: ${n}`)}}//# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map
 ;// CONCATENATED MODULE: ./node_modules/octokit/node_modules/universal-user-agent/index.js
@@ -183960,14 +183960,12 @@ class ComponentDetection {
         info("Getting manifests from results");
         const results = await external_fs_default().readFileSync(this.outputPath, 'utf8');
         var json = JSON.parse(results);
-        let dependencyGraphs = this.normalizeDependencyGraphPaths(json.dependencyGraphs, getInput('filePath'));
+        let dependencyGraphs = this.normalizeDependencyGraphPaths(json.dependencyGraphs);
         return this.processComponentsToManifests(json.componentsFound, dependencyGraphs);
     }
     static processComponentsToManifests(componentsFound, dependencyGraphs) {
-        // Parse the result file and add the packages to the package cache
-        const packageCache = new h();
-        const packages = [];
-        componentsFound.forEach(async (component) => {
+        const packagesById = new Map();
+        componentsFound.forEach((component) => {
             // Skip components without packageUrl
             if (!component.component.packageUrl) {
                 core_debug(`Skipping component detected without packageUrl: ${JSON.stringify({
@@ -183983,80 +183981,59 @@ class ComponentDetection {
                 core_debug(`Skipping component with invalid packageUrl: ${component.component.id}`);
                 return;
             }
-            if (!packageCache.hasPackage(packageUrl)) {
-                const pkg = new ComponentDetectionPackage(packageUrl, component.component.id, component.isDevelopmentDependency, component.topLevelReferrers, component.locationsFoundAt, component.containerDetailIds, component.containerLayerIds);
-                packageCache.addPackage(pkg);
-                packages.push(pkg);
-            }
+            packagesById.set(component.component.id, new ComponentDetectionPackage(packageUrl, component.component.id, component.isDevelopmentDependency));
         });
-        // Set the transitive dependencies
-        core_debug("Sorting out transitive dependencies");
-        packages.forEach(async (pkg) => {
-            pkg.topLevelReferrers.forEach(async (referrer) => {
-                // Skip if referrer doesn't have a valid packageUrl
-                if (!referrer.packageUrl) {
-                    core_debug(`Skipping referrer without packageUrl for component: ${pkg.id}`);
-                    return;
-                }
-                const referrerUrl = ComponentDetection.makePackageUrl(referrer.packageUrl);
-                referrer.packageUrlString = referrerUrl;
-                // Skip if the generated packageUrl is empty
-                if (!referrerUrl) {
-                    core_debug(`Skipping referrer with invalid packageUrl for component: ${pkg.id}`);
-                    return;
-                }
-                try {
-                    const referrerPackage = packageCache.lookupPackage(referrerUrl);
-                    if (referrerPackage === pkg) {
-                        core_debug(`Skipping self-reference for package: ${pkg.id}`);
-                        return; // Skip self-references
-                    }
-                    if (referrerPackage) {
-                        referrerPackage.dependsOn(pkg);
-                    }
-                }
-                catch (error) {
-                    core_debug(`Error looking up referrer package: ${error}`);
-                }
-            });
-        });
-        // Create manifests
-        const manifests = [];
-        // Check the locationsFoundAt for every package and add each as a manifest
-        this.addPackagesToManifests(packages, manifests, dependencyGraphs);
-        return manifests;
+        return this.createManifests(packagesById, dependencyGraphs);
     }
-    static addPackagesToManifests(packages, manifests, dependencyGraphs) {
-        packages.forEach((pkg) => {
-            pkg.locationsFoundAt.forEach((location) => {
-                // Use the normalized path (remove leading slash if present)
-                let normalizedLocation = location.startsWith('/') ? location.substring(1) : location;
-                // Unescape the path, as upstream ComponentDetection emits locationsFoundAt in URL-encoded form
-                normalizedLocation = decodeURIComponent(normalizedLocation);
-                if (!manifests.find((manifest) => manifest.name == normalizedLocation)) {
-                    const manifest = new g(normalizedLocation, normalizedLocation);
-                    manifests.push(manifest);
+    static createManifests(packageDefinitionsById, dependencyGraphs) {
+        return Object.entries(dependencyGraphs)
+            .filter(([location]) => !ComponentDetection.isInstalledNpmManifest(location))
+            .map(([location, dependencyGraph]) => {
+            const manifest = new g(location, location);
+            const manifestPackagesById = new Map();
+            for (const componentId of Object.keys(dependencyGraph.graph)) {
+                const packageDefinition = packageDefinitionsById.get(componentId);
+                if (!packageDefinition) {
+                    warning(`No package found for component in dependency graph ${location}: ${componentId}`);
+                    continue;
                 }
-                const depGraphEntry = dependencyGraphs[normalizedLocation];
-                if (!depGraphEntry) {
-                    warning(`No dependency graph entry found for manifest location: ${normalizedLocation}`);
-                    return; // Skip this location if not found in dependencyGraphs
+                manifestPackagesById.set(componentId, new ComponentDetectionPackage(packageDefinition.packageUrlString, packageDefinition.id, packageDefinition.isDevelopmentDependency));
+            }
+            for (const [componentId, dependencyIds] of Object.entries(dependencyGraph.graph)) {
+                const pkg = manifestPackagesById.get(componentId);
+                if (!pkg || !dependencyIds) {
+                    continue;
                 }
-                const directDependencies = depGraphEntry.explicitlyReferencedComponentIds;
-                if (directDependencies.includes(pkg.id)) {
-                    manifests
-                        .find((manifest) => manifest.name == normalizedLocation)
-                        ?.addDirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
+                for (const dependencyId of dependencyIds) {
+                    const dependency = manifestPackagesById.get(dependencyId);
+                    if (dependency && dependency !== pkg) {
+                        pkg.dependsOn(dependency);
+                    }
+                }
+            }
+            const directDependencies = new Set(dependencyGraph.explicitlyReferencedComponentIds);
+            for (const [componentId, pkg] of manifestPackagesById) {
+                const scope = ComponentDetection.getDependencyScope(pkg, componentId, dependencyGraph);
+                if (directDependencies.has(componentId)) {
+                    manifest.addDirectDependency(pkg, scope);
                 }
                 else {
-                    manifests
-                        .find((manifest) => manifest.name == normalizedLocation)
-                        ?.addIndirectDependency(pkg, ComponentDetection.getDependencyScope(pkg));
+                    manifest.addIndirectDependency(pkg, scope);
                 }
-            });
+            }
+            return manifest;
         });
     }
-    static getDependencyScope(pkg) {
+    static isInstalledNpmManifest(location) {
+        return location.replace(/\\/g, '/').split('/').includes('node_modules');
+    }
+    static getDependencyScope(pkg, componentId, dependencyGraph) {
+        if (dependencyGraph.dependencies.includes(componentId)) {
+            return 'runtime';
+        }
+        if (dependencyGraph.developmentDependencies.includes(componentId)) {
+            return 'development';
+        }
         return pkg.isDevelopmentDependency ? 'development' : 'runtime';
     }
     static makePackageUrl(packageUrlJson) {
@@ -184136,17 +184113,15 @@ class ComponentDetection {
         });
     }
     /**
-     * Normalizes the keys of a DependencyGraphs object to be relative paths from the resolved filePath input.
+     * Normalizes dependency graph paths relative to the repository workspace.
      * @param dependencyGraphs The DependencyGraphs object to normalize.
-     * @param filePathInput The filePath input (relative or absolute) from the action configuration.
+     * @param repositoryRoot The repository workspace path.
      * @returns A new DependencyGraphs object with relative path keys.
      */
-    static normalizeDependencyGraphPaths(dependencyGraphs, filePathInput) {
-        // Resolve the base directory from filePathInput (relative to cwd if not absolute)
-        const baseDir = external_path_default().resolve(process.cwd(), filePathInput);
+    static normalizeDependencyGraphPaths(dependencyGraphs, repositoryRoot = process.env.GITHUB_WORKSPACE || process.cwd()) {
+        const baseDir = external_path_default().resolve(repositoryRoot);
         const normalized = {};
         for (const absPath in dependencyGraphs) {
-            // Make the path relative to the baseDir
             let relPath = external_path_default().relative(baseDir, absPath).replace(/\\/g, '/');
             normalized[relPath] = dependencyGraphs[absPath];
         }
@@ -184156,19 +184131,11 @@ class ComponentDetection {
 class ComponentDetectionPackage extends c {
     id;
     isDevelopmentDependency;
-    topLevelReferrers;
-    locationsFoundAt;
-    containerDetailIds;
-    containerLayerIds;
     packageUrlString;
-    constructor(packageUrl, id, isDevelopmentDependency, topLevelReferrers, locationsFoundAt, containerDetailIds, containerLayerIds) {
+    constructor(packageUrl, id, isDevelopmentDependency) {
         super(packageUrl);
         this.id = id;
         this.isDevelopmentDependency = isDevelopmentDependency;
-        this.topLevelReferrers = topLevelReferrers;
-        this.locationsFoundAt = locationsFoundAt;
-        this.containerDetailIds = containerDetailIds;
-        this.containerLayerIds = containerLayerIds;
         this.packageUrlString = packageUrl;
     }
 }
