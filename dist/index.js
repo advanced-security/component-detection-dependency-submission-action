@@ -162460,6 +162460,7 @@ function wrappy (fn, cb) {
 
 // EXTERNAL MODULE: external "os"
 var external_os_ = __nccwpck_require__(70857);
+var external_os_default = /*#__PURE__*/__nccwpck_require__.n(external_os_);
 ;// CONCATENATED MODULE: ./node_modules/@actions/core/lib/utils.js
 // We use any as a valid input type
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -184082,42 +184083,42 @@ var node_modules_undici_0 = __nccwpck_require__(46752);
 
 
 
+
 dist_default().config();
 const proxyAgent = new node_modules_undici_0/* EnvHttpProxyAgent */.J2();
 class ComponentDetection {
     static componentDetectionPath = process.platform === "win32" ? './component-detection.exe' : './component-detection';
-    static outputPath = './output.json';
+    // Keep the scan manifest in an action-owned runner temp directory so a repository's own
+    // files are never read or deleted, and so results cannot leak between runs.
+    static outputPath = external_path_default().join(process.env.RUNNER_TEMP || external_os_default().tmpdir(), 'component-detection-output.json');
     // This is the default entry point for this class.
     static async scanAndGetManifests(path) {
         await this.downloadLatestRelease();
-        await this.runComponentDetection(path);
-        return await this.getManifestsFromResults();
+        // Remove any manifest left behind by an earlier scan so a failed run cannot submit stale results.
+        external_fs_default().rmSync(this.outputPath, { force: true });
+        try {
+            await this.runComponentDetection(path);
+            return await this.getManifestsFromResults();
+        }
+        finally {
+            external_fs_default().rmSync(this.outputPath, { force: true });
+        }
     }
     // Get the latest release from the component-detection repo, download the tarball, and extract it
     static async downloadLatestRelease() {
-        try {
-            core_debug(`Downloading latest release for ${process.platform}`);
-            const downloadURL = await this.getLatestReleaseURL();
-            const blob = await (await this.fetchWithProxy(new URL(downloadURL))).blob();
-            const arrayBuffer = await blob.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
-            // Write the blob to a file
-            core_debug(`Writing binary to file ${this.componentDetectionPath}`);
-            await external_fs_default().writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
-        }
-        catch (error) {
-            core_error(error);
-        }
+        core_debug(`Downloading latest release for ${process.platform}`);
+        const downloadURL = await this.getLatestReleaseURL();
+        const blob = await (await this.fetchWithProxy(new URL(downloadURL))).blob();
+        const arrayBuffer = await blob.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        // Write the blob to a file
+        core_debug(`Writing binary to file ${this.componentDetectionPath}`);
+        await external_fs_default().writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
     }
     // Run the component-detection CLI on the path specified
     static async runComponentDetection(path) {
         info("Running component-detection");
-        try {
-            await exec_exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`);
-        }
-        catch (error) {
-            core_error(error);
-        }
+        await exec_exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile "${this.outputPath}" ${this.getComponentDetectionParameters()}`);
     }
     static getComponentDetectionParameters() {
         var parameters = "";
@@ -184342,6 +184343,10 @@ async function retrySnapshotSubmission(submit, warn, wait = delay) {
 
 async function run() {
     let manifests = await ComponentDetection.scanAndGetManifests(getInput("filePath"));
+    if (getBooleanInput("fail-on-empty") &&
+        !manifests?.some((manifest) => manifest.countDependencies() > 0)) {
+        throw new Error("Component Detection found no dependencies to submit.");
+    }
     const correlatorInput = getInput("correlator")?.trim() || github_context.job;
     // Get detector configuration inputs
     const detectorName = getInput("detector-name")?.trim();

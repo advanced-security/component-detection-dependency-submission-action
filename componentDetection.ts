@@ -11,6 +11,7 @@ import {
 import fs from 'fs'
 import * as exec from '@actions/exec';
 import dotenv from 'dotenv'
+import os from 'os';
 import path from 'path';
 import { 
   EnvHttpProxyAgent, 
@@ -25,40 +26,39 @@ const proxyAgent = new EnvHttpProxyAgent();
 
 export default class ComponentDetection {
   public static componentDetectionPath = process.platform === "win32" ? './component-detection.exe' : './component-detection';
-  public static outputPath = './output.json';
+  // Keep the scan manifest in an action-owned runner temp directory so a repository's own
+  // files are never read or deleted, and so results cannot leak between runs.
+  public static outputPath = path.join(process.env.RUNNER_TEMP || os.tmpdir(), 'component-detection-output.json');
 
   // This is the default entry point for this class.
   static async scanAndGetManifests(path: string): Promise<Manifest[] | undefined> {
     await this.downloadLatestRelease();
-    await this.runComponentDetection(path);
-    return await this.getManifestsFromResults();
+    // Remove any manifest left behind by an earlier scan so a failed run cannot submit stale results.
+    fs.rmSync(this.outputPath, { force: true });
+    try {
+      await this.runComponentDetection(path);
+      return await this.getManifestsFromResults();
+    } finally {
+      fs.rmSync(this.outputPath, { force: true });
+    }
   }
   // Get the latest release from the component-detection repo, download the tarball, and extract it
   public static async downloadLatestRelease() {
-    try {
-      core.debug(`Downloading latest release for ${process.platform}`);
-      const downloadURL = await this.getLatestReleaseURL();
-      const blob = await (await this.fetchWithProxy(new URL(downloadURL))).blob();
-      const arrayBuffer = await blob.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
+    core.debug(`Downloading latest release for ${process.platform}`);
+    const downloadURL = await this.getLatestReleaseURL();
+    const blob = await (await this.fetchWithProxy(new URL(downloadURL))).blob();
+    const arrayBuffer = await blob.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-      // Write the blob to a file
-      core.debug(`Writing binary to file ${this.componentDetectionPath}`);
-      await fs.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
-    } catch (error: any) {
-      core.error(error);
-    }
+    // Write the blob to a file
+    core.debug(`Writing binary to file ${this.componentDetectionPath}`);
+    await fs.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
   }
 
   // Run the component-detection CLI on the path specified
   public static async runComponentDetection(path: string) {
     core.info("Running component-detection");
-
-    try {
-      await exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`);
-    } catch (error: any) {
-      core.error(error);
-    }
+    await exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile "${this.outputPath}" ${this.getComponentDetectionParameters()}`);
   }
 
   private static getComponentDetectionParameters(): string {
