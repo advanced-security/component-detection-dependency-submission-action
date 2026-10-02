@@ -580,7 +580,7 @@ describe('normalizeDependencyGraphPaths', () => {
 
 describe('normalizeDependencyGraphPaths with real output.json', () => {
   test('converts absolute paths in output.json to repository-relative paths', () => {
-    const output = JSON.parse(fs.readFileSync('./output.json', 'utf8'));
+    const output = JSON.parse(fs.readFileSync(ComponentDetection.outputPath, 'utf8'));
     const dependencyGraphs = output.dependencyGraphs;
     const normalized = ComponentDetection.normalizeDependencyGraphPaths(dependencyGraphs, process.cwd());
 

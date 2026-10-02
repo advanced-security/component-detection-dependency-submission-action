@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -24,16 +24,27 @@ jest.unstable_mockModule("@github/dependency-submission-toolkit", () => ({
   submitSnapshot,
 }));
 
+const emptyScanResult = JSON.stringify({
+  componentsFound: [],
+  dependencyGraphs: {},
+});
+
 const originalCwd = process.cwd();
 const originalExitCode = process.exitCode;
+const originalRunnerTemp = process.env.RUNNER_TEMP;
 let scanDirectory: string;
+let runnerTempDirectory: string;
+let scanResultPath: string;
 
 beforeEach(() => {
   jest.resetModules();
   executeScanner.mockReset();
   submitSnapshot.mockClear();
   scanDirectory = mkdtempSync(join(tmpdir(), "component-detection-test-"));
+  runnerTempDirectory = mkdtempSync(join(tmpdir(), "component-detection-temp-"));
+  scanResultPath = join(runnerTempDirectory, "component-detection-output.json");
   process.chdir(scanDirectory);
+  process.env.RUNNER_TEMP = runnerTempDirectory;
   process.env.GITHUB_RUN_ID = "123";
   process.env.GITHUB_JOB = "dependency-submission";
   process.env["INPUT_FAIL-ON-EMPTY"] = "false";
@@ -42,17 +53,20 @@ beforeEach(() => {
 afterEach(() => {
   process.chdir(originalCwd);
   rmSync(scanDirectory, { recursive: true, force: true });
+  rmSync(runnerTempDirectory, { recursive: true, force: true });
   process.exitCode = originalExitCode;
+  if (originalRunnerTemp === undefined) {
+    delete process.env.RUNNER_TEMP;
+  } else {
+    process.env.RUNNER_TEMP = originalRunnerTemp;
+  }
   delete process.env.GITHUB_RUN_ID;
   delete process.env.GITHUB_JOB;
   delete process.env["INPUT_FAIL-ON-EMPTY"];
 });
 
 async function runActionWithOldResult() {
-  writeFileSync("output.json", JSON.stringify({
-    componentsFound: [],
-    dependencyGraphs: {},
-  }));
+  writeFileSync(scanResultPath, emptyScanResult);
   const { default: detection } = await import("./componentDetection");
   jest.spyOn(detection, "downloadLatestRelease").mockResolvedValue(undefined);
 
@@ -80,10 +94,7 @@ test("does not submit a previous scan's result when no fresh output is written",
 
 test("does not submit when the scanner cannot be downloaded", async () => {
   executeScanner.mockImplementation(async () => {
-    writeFileSync("output.json", JSON.stringify({
-      componentsFound: [],
-      dependencyGraphs: {},
-    }));
+    writeFileSync(scanResultPath, emptyScanResult);
     return 0;
   });
 
@@ -92,4 +103,24 @@ test("does not submit when the scanner cannot be downloaded", async () => {
 
   expect(process.exitCode).toBe(1);
   expect(submitSnapshot).not.toHaveBeenCalled();
+});
+
+test("leaves a repository's own output.json untouched", async () => {
+  const repositoryFile = join(scanDirectory, "output.json");
+  const repositoryContents = JSON.stringify({ keep: "this" });
+  writeFileSync(repositoryFile, repositoryContents);
+  executeScanner.mockImplementation(async () => {
+    writeFileSync(scanResultPath, emptyScanResult);
+    return 0;
+  });
+
+  const { default: detection } = await import("./componentDetection");
+  jest.spyOn(detection, "downloadLatestRelease").mockResolvedValue(undefined);
+
+  await import("./index");
+  await new Promise((resolve) => setImmediate(resolve));
+
+  expect(submitSnapshot).toHaveBeenCalledTimes(1);
+  expect(readFileSync(repositoryFile, "utf8")).toBe(repositoryContents);
+  expect(existsSync(scanResultPath)).toBe(false);
 });

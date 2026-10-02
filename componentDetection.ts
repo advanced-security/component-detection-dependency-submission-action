@@ -11,6 +11,7 @@ import {
 import fs from 'fs'
 import * as exec from '@actions/exec';
 import dotenv from 'dotenv'
+import os from 'os';
 import path from 'path';
 import { 
   EnvHttpProxyAgent, 
@@ -25,14 +26,21 @@ const proxyAgent = new EnvHttpProxyAgent();
 
 export default class ComponentDetection {
   public static componentDetectionPath = process.platform === "win32" ? './component-detection.exe' : './component-detection';
-  public static outputPath = './output.json';
+  // Keep the scan manifest in an action-owned runner temp directory so a repository's own
+  // files are never read or deleted, and so results cannot leak between runs.
+  public static outputPath = path.join(process.env.RUNNER_TEMP || os.tmpdir(), 'component-detection-output.json');
 
   // This is the default entry point for this class.
   static async scanAndGetManifests(path: string): Promise<Manifest[] | undefined> {
     await this.downloadLatestRelease();
+    // Remove any manifest left behind by an earlier scan so a failed run cannot submit stale results.
     fs.rmSync(this.outputPath, { force: true });
-    await this.runComponentDetection(path);
-    return await this.getManifestsFromResults();
+    try {
+      await this.runComponentDetection(path);
+      return await this.getManifestsFromResults();
+    } finally {
+      fs.rmSync(this.outputPath, { force: true });
+    }
   }
   // Get the latest release from the component-detection repo, download the tarball, and extract it
   public static async downloadLatestRelease() {
@@ -50,7 +58,7 @@ export default class ComponentDetection {
   // Run the component-detection CLI on the path specified
   public static async runComponentDetection(path: string) {
     core.info("Running component-detection");
-    await exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`);
+    await exec.exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile "${this.outputPath}" ${this.getComponentDetectionParameters()}`);
   }
 
   private static getComponentDetectionParameters(): string {
