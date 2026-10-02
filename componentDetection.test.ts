@@ -231,7 +231,7 @@ describe('normalizeDependencyGraphPaths', () => {
 
 describe('normalizeDependencyGraphPaths with real output.json', () => {
   test('converts absolute paths in output.json to relative paths using current cwd and filePath', () => {
-    const output = JSON.parse(fs.readFileSync('./output.json', 'utf8'));
+    const output = JSON.parse(fs.readFileSync(ComponentDetection.outputPath, 'utf8'));
     const dependencyGraphs = output.dependencyGraphs;
     // Use the same filePath as the action default (".")
     const normalized = ComponentDetection.normalizeDependencyGraphPaths(dependencyGraphs, 'test');

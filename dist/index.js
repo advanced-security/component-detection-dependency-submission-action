@@ -162288,6 +162288,7 @@ var __webpack_exports__ = {};
 
 // EXTERNAL MODULE: external "os"
 var external_os_ = __nccwpck_require__(70857);
+var external_os_default = /*#__PURE__*/__nccwpck_require__.n(external_os_);
 ;// CONCATENATED MODULE: ./node_modules/@actions/core/lib/utils.js
 // We use any as a valid input type
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -183910,17 +183911,26 @@ var node_modules_undici_0 = __nccwpck_require__(46752);
 
 
 
+
 main_default().config();
 const proxyAgent = new node_modules_undici_0/* EnvHttpProxyAgent */.J2();
 class ComponentDetection {
     static componentDetectionPath = process.platform === "win32" ? './component-detection.exe' : './component-detection';
-    static outputPath = './output.json';
+    // Keep the scan manifest in an action-owned runner temp directory so a repository's own
+    // files are never read or deleted, and so results cannot leak between runs.
+    static outputPath = external_path_default().join(process.env.RUNNER_TEMP || external_os_default().tmpdir(), 'component-detection-output.json');
     // This is the default entry point for this class.
     static async scanAndGetManifests(path) {
         await this.downloadLatestRelease();
+        // Remove any manifest left behind by an earlier scan so a failed run cannot submit stale results.
         external_fs_default().rmSync(this.outputPath, { force: true });
-        await this.runComponentDetection(path);
-        return await this.getManifestsFromResults();
+        try {
+            await this.runComponentDetection(path);
+            return await this.getManifestsFromResults();
+        }
+        finally {
+            external_fs_default().rmSync(this.outputPath, { force: true });
+        }
     }
     // Get the latest release from the component-detection repo, download the tarball, and extract it
     static async downloadLatestRelease() {
@@ -183936,7 +183946,7 @@ class ComponentDetection {
     // Run the component-detection CLI on the path specified
     static async runComponentDetection(path) {
         info("Running component-detection");
-        await exec_exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile ${this.outputPath} ${this.getComponentDetectionParameters()}`);
+        await exec_exec(`${this.componentDetectionPath} scan --SourceDirectory ${path} --ManifestFile "${this.outputPath}" ${this.getComponentDetectionParameters()}`);
     }
     static getComponentDetectionParameters() {
         var parameters = "";
