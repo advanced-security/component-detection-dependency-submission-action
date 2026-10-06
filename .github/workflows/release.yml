@@ -81,7 +81,7 @@ jobs:
   manual-release:
     needs: check-dist
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
-    uses: advanced-security/reusable-workflows/.github/workflows/release.yml@f6e68ac73181115289fb21b6aa47b95b3b51523a # v0.3.6
+    uses: advanced-security/reusable-workflows/.github/workflows/release.yml@102c3d8591c7534b43b302fd05bae1f32cf37985 # v0.3.7
     permissions:
       contents: write
       pull-requests: write
@@ -155,7 +155,7 @@ jobs:
   release:
     needs: [fetch-release, check-dist]
     if: ${{ needs.fetch-release.outputs.release == 'true' }}
-    uses: advanced-security/reusable-workflows/.github/workflows/release.yml@f6e68ac73181115289fb21b6aa47b95b3b51523a # v0.3.6
+    uses: advanced-security/reusable-workflows/.github/workflows/release.yml@102c3d8591c7534b43b302fd05bae1f32cf37985 # v0.3.7
     permissions:
       contents: write
       pull-requests: write
