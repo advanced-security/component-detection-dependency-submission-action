@@ -77,6 +77,10 @@ async function run() {
     snapshot.ref = snapshotRef;
   }
 
+  core.startGroup("Dependency Snapshot");
+  core.info(snapshot.prettyJSON());
+  core.endGroup();
+
   await retrySnapshotSubmission(
     () => submitSnapshot(snapshot),
     core.warning
