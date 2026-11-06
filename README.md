@@ -67,5 +67,15 @@ correlator | An optional identifier to distinguish between multiple dependency s
 
 For more information: https://github.com/microsoft/component-detection
 
+### Snapshot evidence
+
+The complete dependency snapshot is printed as ordinary log output in the
+`Dependency Snapshot` group before submission. It includes the submitted
+manifests, resolved dependencies, commit SHA, reference and run identity.
+GitHub's annotation-message limit does not truncate this output.
+The separate `Snapshot successfully created at ...` notice confirms that
+GitHub accepted the submission; generating or logging a snapshot alone does
+not establish success.
+
 # License
 This project is licensed under the terms of the MIT open source license. Please refer to [MIT](LICENSE.md) for the full terms.

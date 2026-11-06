@@ -20,6 +20,7 @@ jest.unstable_mockModule("@github/dependency-submission-toolkit", () => ({
   Manifest: class {},
   Snapshot: class {
     addManifest() {}
+    prettyJSON() { return "{}"; }
   },
   submitSnapshot,
 }));

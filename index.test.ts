@@ -2,6 +2,7 @@ import { jest } from "@jest/globals";
 
 const scanAndGetManifests = jest.fn().mockResolvedValue([]);
 const submitSnapshot = jest.fn().mockResolvedValue(undefined);
+const snapshotOutput = jest.fn().mockReturnValue("{}");
 
 jest.unstable_mockModule("./componentDetection", () => ({
   default: { scanAndGetManifests },
@@ -13,6 +14,7 @@ jest.unstable_mockModule("@github/dependency-submission-toolkit", () => ({
   Manifest: class {},
   Snapshot: class {
     addManifest() {}
+    prettyJSON() { return snapshotOutput(); }
   },
   submitSnapshot,
 }));
@@ -23,6 +25,7 @@ beforeEach(() => {
   jest.resetModules();
   scanAndGetManifests.mockReset().mockResolvedValue([]);
   submitSnapshot.mockReset().mockResolvedValue(undefined);
+  snapshotOutput.mockReset().mockReturnValue("{}");
   process.env.GITHUB_RUN_ID = "123";
   process.env.GITHUB_JOB = "dependency-submission";
 });
@@ -75,4 +78,32 @@ test("submits detected manifests when non-empty results are required", async () 
 
   expect(process.exitCode).toBe(priorExitCode);
   expect(submitSnapshot).toHaveBeenCalledTimes(1);
+});
+
+test("logs the complete snapshot as ordinary output even beyond the annotation limit", async () => {
+  process.env["INPUT_FAIL-ON-EMPTY"] = "false";
+  const snapshot = JSON.stringify({
+    manifests: { "src/Service.csproj": {
+      resolved: Object.fromEntries(Array.from({ length: 100 }, (_, index) => {
+        const purl = `pkg:nuget/Example.Dependency${index}@1.0.0`;
+        return [purl, { package_url: purl }];
+      })),
+      file: { source_location: "src/Service.csproj" },
+    } },
+    sha: "a".repeat(40), ref: "refs/heads/main", job: { id: "123" }, version: 0,
+  }, null, 2);
+  expect(snapshot.length).toBeGreaterThan(4096);
+  snapshotOutput.mockReturnValue(snapshot);
+  const output: string[] = [];
+  const write = jest.spyOn(process.stdout, "write").mockImplementation((chunk) => {
+    output.push(String(chunk));
+    return true;
+  });
+  try {
+    await runAction();
+    expect(output.join("").includes(`::group::Dependency Snapshot\n${snapshot}\n::endgroup::\n`)).toBe(true);
+    expect(submitSnapshot).toHaveBeenCalledTimes(1);
+  } finally {
+    write.mockRestore();
+  }
 });

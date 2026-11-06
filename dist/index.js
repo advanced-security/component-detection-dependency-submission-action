@@ -169365,13 +169365,13 @@ function info(message) {
  * @param name The name of the output group
  */
 function startGroup(name) {
-    issue('group', name);
+    command_issue('group', name);
 }
 /**
  * End an output group.
  */
 function endGroup() {
-    issue('endgroup');
+    command_issue('endgroup');
 }
 /**
  * Wrap an asynchronous function call in a group.
@@ -188425,6 +188425,9 @@ async function run() {
     if (snapshotRef) {
         snapshot.ref = snapshotRef;
     }
+    startGroup("Dependency Snapshot");
+    info(snapshot.prettyJSON());
+    endGroup();
     await retrySnapshotSubmission(() => L(snapshot), warning);
 }
 run().catch((error) => {
