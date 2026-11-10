@@ -61,7 +61,7 @@ jobs:
         run: npm run prepare
 
       - name: Create release pull request
-        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        uses: peter-evans/create-pull-request@15733dbdfeedb4f7fdb73d13c6f5ac83b710fab8 # v8.1.2
         with:
           token: ${{ github.token }}
           commit-message: "chore: bump version (${{ inputs.bump }})"
@@ -81,7 +81,7 @@ jobs:
   manual-release:
     needs: check-dist
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
-    uses: advanced-security/reusable-workflows/.github/workflows/release.yml@102c3d8591c7534b43b302fd05bae1f32cf37985 # v0.3.7
+    uses: advanced-security/reusable-workflows/.github/workflows/release.yml@3dce64cbf4e4b35282a17b8c8bc238ede50a89e7 # v0.3.8
     permissions:
       contents: write
       pull-requests: write
@@ -155,7 +155,7 @@ jobs:
   release:
     needs: [fetch-release, check-dist]
     if: ${{ needs.fetch-release.outputs.release == 'true' }}
-    uses: advanced-security/reusable-workflows/.github/workflows/release.yml@102c3d8591c7534b43b302fd05bae1f32cf37985 # v0.3.7
+    uses: advanced-security/reusable-workflows/.github/workflows/release.yml@3dce64cbf4e4b35282a17b8c8bc238ede50a89e7 # v0.3.8
     permissions:
       contents: write
       pull-requests: write
