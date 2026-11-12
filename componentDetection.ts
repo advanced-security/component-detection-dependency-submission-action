@@ -42,17 +42,34 @@ export default class ComponentDetection {
       fs.rmSync(this.outputPath, { force: true });
     }
   }
-  // Get the latest release from the component-detection repo, download the tarball, and extract it
+  // Get the latest release from the component-detection repo and download its executable.
   public static async downloadLatestRelease() {
-    core.debug(`Downloading latest release for ${process.platform}`);
-    const downloadURL = await this.getLatestReleaseURL();
-    const blob = await (await this.fetchWithProxy(new URL(downloadURL))).blob();
-    const arrayBuffer = await blob.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        core.debug(`Downloading latest release for ${process.platform} (attempt ${attempt}/${maxAttempts})`);
+        const downloadURL = await this.getLatestReleaseURL();
+        const response = await this.fetchWithProxy(new URL(downloadURL));
+        if (!response.ok) {
+          await response.body?.cancel();
+          throw new Error(`Component Detection download failed: HTTP ${response.status} ${response.statusText} (${downloadURL})`);
+        }
+        const buffer = Buffer.from(await response.arrayBuffer());
 
-    // Write the blob to a file
-    core.debug(`Writing binary to file ${this.componentDetectionPath}`);
-    await fs.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
+        core.debug(`Writing binary to file ${this.componentDetectionPath}`);
+        fs.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
+        return;
+      } catch (error) {
+        const message = `Component Detection acquisition failed (attempt ${attempt}/${maxAttempts}): ${String(error).replace(/\s+/g, " ").trim()}`;
+        if (attempt === maxAttempts) {
+          core.error(message);
+          throw error;
+        }
+        const retryDelay = 1000 * attempt;
+        core.warning(`${message}. Retrying in ${retryDelay}ms...`);
+        await new Promise((resolve) => setTimeout(() => resolve(undefined), retryDelay));
+      }
+    }
   }
 
   // Run the component-detection CLI on the path specified
@@ -237,7 +254,8 @@ export default class ComponentDetection {
     if (ghesMode) {
       githubToken = "";
     }
-    const octokit = new Octokit({ auth: githubToken, baseUrl: githubAPIURL, request: { fetch: this.fetchWithProxy}, log: {
+    // Keep retries in the acquisition loop so each run makes at most three attempts.
+    const octokit = new Octokit({ auth: githubToken, baseUrl: githubAPIURL, request: { fetch: this.fetchWithProxy}, retry: { enabled: false }, throttle: { enabled: false }, log: {
       debug: core.debug,
       info: core.info,
       warn: core.warning,
@@ -248,24 +266,13 @@ export default class ComponentDetection {
     const repo = "component-detection";
     core.debug("Attempting to download latest release from " + githubAPIURL);
 
-    try {
-      const latestRelease = await octokit.request("GET /repos/{owner}/{repo}/releases/latest", {owner, repo});
-
-    var downloadURL: string = "";
+    const latestRelease = await octokit.request("GET /repos/{owner}/{repo}/releases/latest", {owner, repo});
     const assetName = process.platform === "win32" ? "component-detection-win-x64.exe" : "component-detection-linux-x64";
-    latestRelease.data.assets.forEach((asset: any) => {
-      if (asset.name === assetName) {
-        downloadURL = asset.browser_download_url;
-      }
-    });
-
-    return downloadURL;
-    } catch (error: any) {
-      core.error(error);
-      core.debug(error.message);
-      core.debug(error.stack);
-      throw new Error("Failed to download latest release");
+    const asset = latestRelease.data.assets.find((asset) => asset.name === assetName);
+    if (!asset) {
+      throw new Error(`No Component Detection release asset named ${assetName}`);
     }
+    return asset.browser_download_url;
   }
 
   private static async fetchWithProxy(url: string | URL, options?: UndiciRequestInit) : Promise<UndiciResponse> {

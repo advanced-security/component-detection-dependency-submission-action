@@ -188140,16 +188140,34 @@ class ComponentDetection {
             external_fs_default().rmSync(this.outputPath, { force: true });
         }
     }
-    // Get the latest release from the component-detection repo, download the tarball, and extract it
+    // Get the latest release from the component-detection repo and download its executable.
     static async downloadLatestRelease() {
-        core_debug(`Downloading latest release for ${process.platform}`);
-        const downloadURL = await this.getLatestReleaseURL();
-        const blob = await (await this.fetchWithProxy(new URL(downloadURL))).blob();
-        const arrayBuffer = await blob.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        // Write the blob to a file
-        core_debug(`Writing binary to file ${this.componentDetectionPath}`);
-        await external_fs_default().writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
+        const maxAttempts = 3;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                core_debug(`Downloading latest release for ${process.platform} (attempt ${attempt}/${maxAttempts})`);
+                const downloadURL = await this.getLatestReleaseURL();
+                const response = await this.fetchWithProxy(new URL(downloadURL));
+                if (!response.ok) {
+                    await response.body?.cancel();
+                    throw new Error(`Component Detection download failed: HTTP ${response.status} ${response.statusText} (${downloadURL})`);
+                }
+                const buffer = Buffer.from(await response.arrayBuffer());
+                core_debug(`Writing binary to file ${this.componentDetectionPath}`);
+                external_fs_default().writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
+                return;
+            }
+            catch (error) {
+                const message = `Component Detection acquisition failed (attempt ${attempt}/${maxAttempts}): ${String(error).replace(/\s+/g, " ").trim()}`;
+                if (attempt === maxAttempts) {
+                    core_error(message);
+                    throw error;
+                }
+                const retryDelay = 1000 * attempt;
+                warning(`${message}. Retrying in ${retryDelay}ms...`);
+                await new Promise((resolve) => setTimeout(() => resolve(undefined), retryDelay));
+            }
+        }
     }
     // Run the component-detection CLI on the path specified
     static async runComponentDetection(path) {
@@ -188288,7 +188306,8 @@ class ComponentDetection {
         if (ghesMode) {
             githubToken = "";
         }
-        const octokit = new dist_bundle_Octokit({ auth: githubToken, baseUrl: githubAPIURL, request: { fetch: this.fetchWithProxy }, log: {
+        // Keep retries in the acquisition loop so each run makes at most three attempts.
+        const octokit = new dist_bundle_Octokit({ auth: githubToken, baseUrl: githubAPIURL, request: { fetch: this.fetchWithProxy }, retry: { enabled: false }, throttle: { enabled: false }, log: {
                 debug: core_debug,
                 info: info,
                 warn: warning,
@@ -188297,23 +188316,13 @@ class ComponentDetection {
         const owner = "microsoft";
         const repo = "component-detection";
         core_debug("Attempting to download latest release from " + githubAPIURL);
-        try {
-            const latestRelease = await octokit.request("GET /repos/{owner}/{repo}/releases/latest", { owner, repo });
-            var downloadURL = "";
-            const assetName = process.platform === "win32" ? "component-detection-win-x64.exe" : "component-detection-linux-x64";
-            latestRelease.data.assets.forEach((asset) => {
-                if (asset.name === assetName) {
-                    downloadURL = asset.browser_download_url;
-                }
-            });
-            return downloadURL;
+        const latestRelease = await octokit.request("GET /repos/{owner}/{repo}/releases/latest", { owner, repo });
+        const assetName = process.platform === "win32" ? "component-detection-win-x64.exe" : "component-detection-linux-x64";
+        const asset = latestRelease.data.assets.find((asset) => asset.name === assetName);
+        if (!asset) {
+            throw new Error(`No Component Detection release asset named ${assetName}`);
         }
-        catch (error) {
-            core_error(error);
-            core_debug(error.message);
-            core_debug(error.stack);
-            throw new Error("Failed to download latest release");
-        }
+        return asset.browser_download_url;
     }
     static async fetchWithProxy(url, options) {
         return (0,node_modules_undici_0/* fetch */.hd)(url, {
