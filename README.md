@@ -2,6 +2,8 @@
 
 This GitHub Action runs the [microsoft/component-detection](https://github.com/microsoft/component-detection) library to automate dependency extraction at build time. It uses a combination of static and dynamic scanning to build a dependency tree and then uploads that to GitHub's dependency graph via the dependency submission API. This gives you more accurate Dependabot alerts, and support for a bunch of additional ecosystems.
 
+The action downloads the latest Component Detection release, retrying acquisition failures twice (three attempts total), with 1-second and 2-second delays. Failed attempts are logged, including HTTP status codes for unsuccessful downloads. If acquisition still fails, the action fails without running the detector or submitting a dependency snapshot.
+
 ### Example workflows
 
 ```yaml
