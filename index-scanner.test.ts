@@ -163,6 +163,26 @@ describe("detector acquisition", () => {
     expect(errorLog).not.toHaveBeenCalled();
   });
 
+  test("preserves HTTP details when cancelling an errored response body fails", async () => {
+    const failedBodyResponse = new Response(new ReadableStream({
+      start(controller) {
+        controller.error(new Error("response body failed"));
+      },
+    }), { status: 503, statusText: "Service Unavailable" });
+    download.mockResolvedValue(failedBodyResponse);
+    const { default: detection } = await import("./componentDetection");
+
+    const acquisition = detection.downloadLatestRelease();
+    const rejection = expect(acquisition).rejects.toThrow(
+      `HTTP 503 Service Unavailable (${assetURL})`
+    );
+    await jest.runAllTimersAsync();
+    await rejection;
+
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining(`HTTP 503 Service Unavailable (${assetURL})`));
+    expect(errorLog).toHaveBeenCalledWith(expect.stringContaining(`HTTP 503 Service Unavailable (${assetURL})`));
+  });
+
   test("does not overwrite or execute a previous binary after three HTTP failures", async () => {
     download.mockImplementation(async () =>
       new Response("<html>error</html>", { status: 502, statusText: "Bad Gateway" })
@@ -206,6 +226,22 @@ describe("detector acquisition", () => {
     expect(warning).toHaveBeenNthCalledWith(1, expect.stringContaining("release connection reset"));
     expect(warning).toHaveBeenNthCalledWith(2, expect.stringContaining("download interrupted"));
     expect(readFileSync(detection.componentDetectionPath, "utf8")).toBe("detector binary");
+  });
+
+  test("includes a wrapped network cause in retry warnings and the final error", async () => {
+    download.mockRejectedValue(new Error("fetch failed", {
+      cause: new Error("socket hang up"),
+    }));
+    const { default: detection } = await import("./componentDetection");
+
+    const acquisition = detection.downloadLatestRelease();
+    const rejection = expect(acquisition).rejects.toThrow("fetch failed (caused by: socket hang up)");
+    await jest.runAllTimersAsync();
+    await rejection;
+
+    expect(warning).toHaveBeenCalledTimes(2);
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining("fetch failed (caused by: socket hang up)"));
+    expect(errorLog).toHaveBeenCalledWith(expect.stringContaining("fetch failed (caused by: socket hang up)"));
   });
 
   test("succeeds immediately without retrying", async () => {

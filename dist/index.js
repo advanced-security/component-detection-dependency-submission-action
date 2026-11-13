@@ -188122,6 +188122,18 @@ var node_modules_undici_0 = __nccwpck_require__(46752);
 
 dist_default().config();
 const proxyAgent = new node_modules_undici_0/* EnvHttpProxyAgent */.J2();
+const formatAcquisitionError = (error, seen = new Set()) => {
+    if (!(error instanceof Error)) {
+        return String(error);
+    }
+    if (seen.has(error)) {
+        return error.message;
+    }
+    seen.add(error);
+    return error.cause === undefined
+        ? error.message
+        : `${error.message} (caused by: ${formatAcquisitionError(error.cause, seen)})`;
+};
 class ComponentDetection {
     static componentDetectionPath = process.platform === "win32" ? './component-detection.exe' : './component-detection';
     // Keep the scan manifest in an action-owned runner temp directory so a repository's own
@@ -188149,7 +188161,12 @@ class ComponentDetection {
                 const downloadURL = await this.getLatestReleaseURL();
                 const response = await this.fetchWithProxy(new URL(downloadURL));
                 if (!response.ok) {
-                    await response.body?.cancel();
+                    try {
+                        await response.body?.cancel();
+                    }
+                    catch (error) {
+                        core_debug(`Failed to cancel unsuccessful Component Detection response body: ${formatAcquisitionError(error)}`);
+                    }
                     throw new Error(`Component Detection download failed: HTTP ${response.status} ${response.statusText} (${downloadURL})`);
                 }
                 const buffer = Buffer.from(await response.arrayBuffer());
@@ -188158,10 +188175,10 @@ class ComponentDetection {
                 return;
             }
             catch (error) {
-                const message = `Component Detection acquisition failed (attempt ${attempt}/${maxAttempts}): ${String(error).replace(/\s+/g, " ").trim()}`;
+                const message = `Component Detection acquisition failed (attempt ${attempt}/${maxAttempts}): ${formatAcquisitionError(error).replace(/\s+/g, " ").trim()}`;
                 if (attempt === maxAttempts) {
                     core_error(message);
-                    throw error;
+                    throw new Error(message, { cause: error });
                 }
                 const retryDelay = 1000 * attempt;
                 warning(`${message}. Retrying in ${retryDelay}ms...`);

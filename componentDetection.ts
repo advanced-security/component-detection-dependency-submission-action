@@ -24,6 +24,20 @@ dotenv.config();
 
 const proxyAgent = new EnvHttpProxyAgent();
 
+const formatAcquisitionError = (error: unknown, seen: Set<unknown> = new Set()): string => {
+  if (!(error instanceof Error)) {
+    return String(error);
+  }
+  if (seen.has(error)) {
+    return error.message;
+  }
+
+  seen.add(error);
+  return error.cause === undefined
+    ? error.message
+    : `${error.message} (caused by: ${formatAcquisitionError(error.cause, seen)})`;
+};
+
 export default class ComponentDetection {
   public static componentDetectionPath = process.platform === "win32" ? './component-detection.exe' : './component-detection';
   // Keep the scan manifest in an action-owned runner temp directory so a repository's own
@@ -51,7 +65,11 @@ export default class ComponentDetection {
         const downloadURL = await this.getLatestReleaseURL();
         const response = await this.fetchWithProxy(new URL(downloadURL));
         if (!response.ok) {
-          await response.body?.cancel();
+          try {
+            await response.body?.cancel();
+          } catch (error) {
+            core.debug(`Failed to cancel unsuccessful Component Detection response body: ${formatAcquisitionError(error)}`);
+          }
           throw new Error(`Component Detection download failed: HTTP ${response.status} ${response.statusText} (${downloadURL})`);
         }
         const buffer = Buffer.from(await response.arrayBuffer());
@@ -60,10 +78,10 @@ export default class ComponentDetection {
         fs.writeFileSync(this.componentDetectionPath, buffer, { mode: 0o777, flag: 'w' });
         return;
       } catch (error) {
-        const message = `Component Detection acquisition failed (attempt ${attempt}/${maxAttempts}): ${String(error).replace(/\s+/g, " ").trim()}`;
+        const message = `Component Detection acquisition failed (attempt ${attempt}/${maxAttempts}): ${formatAcquisitionError(error).replace(/\s+/g, " ").trim()}`;
         if (attempt === maxAttempts) {
           core.error(message);
-          throw error;
+          throw new Error(message, { cause: error });
         }
         const retryDelay = 1000 * attempt;
         core.warning(`${message}. Retrying in ${retryDelay}ms...`);
